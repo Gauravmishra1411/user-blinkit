@@ -8,6 +8,9 @@ import './payment_page.dart';
 import './orders_page.dart';
 import './login_page.dart';
 import '../widgets/kb_logo.dart';
+import './blog_page.dart';
+import './shoes_page.dart';
+import './bags_page.dart';
 
 class Product {
   final String name;
@@ -188,6 +191,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     CategoryItem(label: 'Pet Care', imageUrl: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&h=600&fit=crop', color: const Color(0xFFF0F4C3)),
     CategoryItem(label: 'Bakery & Biscuits', imageUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&h=600&fit=crop', color: const Color(0xFFFFF8E1)),
     CategoryItem(label: 'Tea & Coffee', imageUrl: 'https://images.unsplash.com/photo-1544787210-22d2dc479b7b?w=400&h=600&fit=crop', color: const Color(0xFFE0F2F1)),
+    CategoryItem(label: 'Shoes', imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=600&fit=crop', color: const Color(0xFFF0F0F0)),
   ];
 
   final List<ProductItem> allProducts = [
@@ -484,6 +488,13 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                           category: categories[index],
                           isDark: isDark,
                           onTap: () {
+                            if (categories[index].label == 'Shoes') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => ShoesPage(isDarkMode: isDark)),
+                              );
+                              return;
+                            }
                             setState(() => _selectedCategoryIndex = index);
                             Navigator.push(
                               context,
@@ -1129,6 +1140,19 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               }),
               const SizedBox(height: 60),
               
+              _buildPromotionBanners(),
+              
+              const SizedBox(height: 60),
+
+              _FeaturedProductsSection(
+                onAddToCart: (idx) => setState(() => _productQty[idx] = (_productQty[idx] ?? 0) + 1),
+                onShowDetail: (product, idx) => _showProductDetail(product, idx),
+                productQty: _productQty,
+                isDark: isDark,
+              ),
+              
+              const SizedBox(height: 60),
+
               // ── FOOTER SECTION ──────────────────────────────────
               _buildFooter(),
               const SizedBox(height: 20),
@@ -2870,6 +2894,123 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     );
   }
 
+  Widget _buildPromotionBanners() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          // Left Banner (Large)
+          Expanded(
+            flex: 6,
+            child: Container(
+              height: 380,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                image: const DecorationImage(
+                  image: NetworkImage('https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1200&q=80'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(40),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    colors: [Colors.black.withOpacity(0.5), Colors.transparent],
+                    begin: Alignment.bottomLeft,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('New Arrivals', style: TextStyle(color: Color(0xFF4F8EFE), fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Women's Style\nUp to 70% Off",
+                      style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, height: 1.1),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('Shop Now'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Right Stack
+          Expanded(
+            flex: 4,
+            child: Column(
+              children: [
+                _buildSmallBanner('Handbag', 'Shop Now', '25% OFF', 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&q=80', const Color(0xFF4F8EFE)),
+                const SizedBox(height: 16),
+                _buildSmallBanner('Fashion Shoes', 'Shop Now', 'HOT', 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80', const Color(0xFF27C93F)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallBanner(String title, String subtitle, String tag, String img, Color tagColor) {
+    return GestureDetector(
+      onTap: () {
+        if (title.contains('Shoes')) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ShoesPage(isDarkMode: isDark)),
+          );
+        }
+      },
+      child: Container(
+        height: 182,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9F9F9),
+          borderRadius: BorderRadius.circular(16),
+          image: DecorationImage(image: NetworkImage(img), fit: BoxFit.cover),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(colors: [Colors.black.withOpacity(0.4), Colors.transparent], begin: Alignment.centerLeft),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: tagColor, borderRadius: BorderRadius.circular(4)),
+                child: Text(tag, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () {},
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
+                child: Text('$subtitle >', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFooter() {
     return Container(
       width: double.infinity,
@@ -2969,9 +3110,11 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _footerBottomLink('HOME'),
+              _footerBottomLink('BLOG'),
               _footerBottomLink('EXPLORE'),
               _footerBottomLink('WORKS'),
               _footerBottomLink('SHOP'),
+              _footerBottomLink('BAGS'),
               _footerBottomLink('ABOUT US'),
               _footerBottomLink('CONTACT'),
             ],
@@ -3034,6 +3177,18 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   }
 
   void _onFooterLinkTap(String title) {
+    if (title.toUpperCase() == 'BLOG') {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => BlogPage(isDarkMode: isDark)));
+      return;
+    }
+    if (title.toUpperCase() == 'BAGS') {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => BagsPage(isDarkMode: isDark)));
+      return;
+    }
+    if (title.toUpperCase() == 'SHOES') {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => ShoesPage(isDarkMode: isDark)));
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Navigating to $title...'),
@@ -4000,6 +4155,24 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                   const SizedBox(width: 12),
                   
+                  // Blog Button in Header
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context, 
+                      MaterialPageRoute(builder: (context) => BlogPage(isDarkMode: isDarkMode))
+                    ),
+                    child: Text(
+                      'BLOG',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: isDarkMode ? const Color(0xFF4F8EFE) : const Color(0xFF1A73E8),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  
                   // Cart Pill
                   GestureDetector(
                     onTap: onCartTap,
@@ -4230,5 +4403,203 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
            oldDelegate.address != address ||
            oldDelegate.totalCartItems != totalCartItems ||
            oldDelegate.searchController.text != searchController.text;
+  }
+}
+
+class _FeaturedProductsSection extends StatefulWidget {
+  final Function(int) onAddToCart;
+  final Function(ProductItem, int) onShowDetail;
+  final Map<int, int> productQty;
+  final bool isDark;
+
+  const _FeaturedProductsSection({
+    required this.onAddToCart,
+    required this.onShowDetail,
+    required this.productQty,
+    required this.isDark,
+  });
+
+  @override
+  State<_FeaturedProductsSection> createState() => _FeaturedProductsSectionState();
+}
+
+class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final List<String> _tabs = ['New Arrival', 'Best Selling', 'Top Rated'];
+
+  final List<ProductItem> _newArrivals = [
+    ProductItem(name: 'Tan Solid Laptop Backpack', size: 'Large', price: '₹1490', deliveryMins: '25', imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&q=80', category: 'Backpacks'),
+    ProductItem(name: 'Brown Solid Biker Jacket', size: 'M', price: '₹1100', deliveryMins: '30', imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80', category: 'Jackets'),
+    ProductItem(name: 'Men Brown Solid Mid-Top Boots', size: '9 UK', price: '₹1150', deliveryMins: '45', imageUrl: 'https://images.unsplash.com/photo-1520639889456-748436ef7b90?w=500&q=80', category: 'Shoes'),
+    ProductItem(name: 'Petite Olive Green Solid Top', size: 'S', price: '₹490', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=500&q=80', category: 'Dresses'),
+    ProductItem(name: 'Brown Solid Laptop Bag', size: '15.6"', price: '₹990', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&q=80', category: 'Bags'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Center(
+          child: Column(
+            children: [
+              const Text(
+                'Featured Products',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+              ),
+              const SizedBox(height: 16),
+              TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                indicatorColor: const Color(0xFF27C93F),
+                indicatorWeight: 3,
+                labelColor: widget.isDark ? Colors.white : Colors.black,
+                unselectedLabelColor: widget.isDark ? Colors.white38 : Colors.black38,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                indicatorPadding: const EdgeInsets.symmetric(horizontal: 16),
+                tabs: _tabs.map((t) => Tab(text: t)).toList(),
+                dividerColor: Colors.transparent,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        SizedBox(
+          height: 320,
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildProductRow(_newArrivals),
+              Center(child: Text('Best Selling coming soon...', style: TextStyle(color: widget.isDark ? Colors.white54 : Colors.black54))),
+              Center(child: Text('Top Rated coming soon...', style: TextStyle(color: widget.isDark ? Colors.white54 : Colors.black54))),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductRow(List<ProductItem> products) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      scrollDirection: Axis.horizontal,
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        // Reuse the visual logic of the card as requested
+        return Container(
+          width: 170,
+          margin: const EdgeInsets.only(right: 16, bottom: 10),
+          child: _AddressPageProductCard(
+            product: products[index],
+            qty: widget.productQty[1000 + index] ?? 0,
+            onAddToCart: () => widget.onAddToCart(1000 + index),
+            onTap: () => widget.onShowDetail(products[index], 1000 + index),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Extract the product card to a reusable widget logic to satisfy the user's request
+class _AddressPageProductCard extends StatelessWidget {
+  final ProductItem product;
+  final int qty;
+  final VoidCallback onAddToCart;
+  final VoidCallback onTap;
+
+  const _AddressPageProductCard({
+    required this.product,
+    required this.qty,
+    required this.onAddToCart,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF1F1F1), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Center(
+                  child: Image.network(product.imageUrl, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: const Color(0xFFF3F3F3), borderRadius: BorderRadius.circular(6)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.timer_outlined, size: 11, color: Colors.black87),
+                        const SizedBox(width: 4),
+                        Text('${product.deliveryMins} MINS', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.black87)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black, height: 1.2)),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(product.price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.black)),
+                      qty == 0
+                        ? GestureDetector(
+                            onTap: onAddToCart,
+                            child: Container(
+                              width: 64, height: 36,
+                              decoration: BoxDecoration(color: const Color(0xFFF7FFF9), border: Border.all(color: const Color(0xFF27C93F), width: 1.5), borderRadius: BorderRadius.circular(8)),
+                              child: const Center(child: Text('ADD', style: TextStyle(color: Color(0xFF27C93F), fontSize: 13, fontWeight: FontWeight.w800))),
+                            ),
+                          )
+                        : Container(
+                            width: 64, height: 36,
+                            decoration: BoxDecoration(color: const Color(0xFF27C93F), borderRadius: BorderRadius.circular(8)),
+                            child: const Center(child: Text('ADDED', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                          ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

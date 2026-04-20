@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "bash render-build.sh",
+    "web-build": "flutter build web --release",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

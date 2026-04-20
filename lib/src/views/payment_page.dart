@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 
 class PaymentPage extends StatefulWidget {
   final bool isDarkMode;
@@ -446,6 +448,16 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
   Timer? _orderTimer;
   int _secondsRemaining = 15 * 60;
 
+  // Map related
+  GoogleMapController? _mapController;
+  Position? _currentPosition;
+  final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
+  bool _isMapLoading = true;
+
+  // Mock Pickup Location (Delivery Hub)
+  static const LatLng _pickupLocation = LatLng(28.5355, 77.3910); 
+
   @override
   void initState() {
     super.initState();
@@ -466,8 +478,84 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
           _showOrderCard = true;
         });
         _startTimer();
+        _initializeMapData();
       }
     });
+  }
+
+  Future<void> _initializeMapData() async {
+    try {
+      // 1. Get Permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      // 2. Get Current Location
+      Position position = await Geolocator.getCurrentPosition();
+      if (mounted) {
+        setState(() {
+          _currentPosition = position;
+          _isMapLoading = false;
+          _setupMarkersAndRoute();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error getting location: $e");
+      if (mounted) {
+        setState(() => _isMapLoading = false);
+      }
+    }
+  }
+
+  void _setupMarkersAndRoute() {
+    if (_currentPosition == null) return;
+    
+    final LatLng userLoc = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+
+    setState(() {
+      // Add Markers
+      _markers.add(Marker(
+        markerId: const MarkerId('pickup'),
+        position: _pickupLocation,
+        infoWindow: const InfoWindow(title: 'Blinkit Hub'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+      ));
+
+      _markers.add(Marker(
+        markerId: const MarkerId('delivery'),
+        position: userLoc,
+        infoWindow: const InfoWindow(title: 'Your Location'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ));
+
+      // Add simple direct polyline (In real app, use Directions API)
+      _polylines.add(Polyline(
+        polylineId: const PolylineId('route'),
+        points: [_pickupLocation, userLoc],
+        color: const Color(0xFF2D7A3E),
+        width: 4,
+        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+      ));
+    });
+
+    // Zoom to fit both points
+    _fitBounds();
+  }
+
+  void _fitBounds() {
+    if (_mapController == null || _currentPosition == null) return;
+    
+    final LatLng userLoc = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+    
+    LatLngBounds bounds;
+    if (_pickupLocation.latitude > userLoc.latitude) {
+      bounds = LatLngBounds(southwest: userLoc, northeast: _pickupLocation);
+    } else {
+      bounds = LatLngBounds(southwest: _pickupLocation, northeast: userLoc);
+    }
+
+    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
   }
 
   void _generateParticles() {
@@ -597,8 +685,41 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
                               ),
                             ],
                           ),
+                          ),
                         ),
                         
+                        // Map Section
+                        Container(
+                          height: 200,
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: _isMapLoading 
+                              ? const Center(child: CircularProgressIndicator())
+                              : GoogleMap(
+                                  initialCameraPosition: CameraPosition(
+                                    target: _pickupLocation,
+                                    zoom: 12,
+                                  ),
+                                  onMapCreated: (controller) {
+                                    _mapController = controller;
+                                    if (_currentPosition != null) _fitBounds();
+                                  },
+                                  markers: _markers,
+                                  polylines: _polylines,
+                                  zoomControlsEnabled: false,
+                                  myLocationButtonEnabled: false,
+                                  mapToolbarEnabled: false,
+                                  style: isDark ? _darkMapStyle : null,
+                                ),
+                          ),
+                        ),
+
                         Padding(
                           padding: const EdgeInsets.all(24),
                           child: Column(
@@ -712,6 +833,78 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
       ),
     );
   }
+
+  static const String _darkMapStyle = '''
+[
+  {
+    "elementType": "geometry",
+    "stylers": [{"color": "#242f3e"}]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#746855"}]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [{"color": "#242f3e"}]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#d59563"}]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#d59563"}]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [{"color": "#263c3f"}]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#6b9a76"}]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{"color": "#38414e"}]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.stroke",
+    "stylers": [{"color": "#212a37"}]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#9ca5b3"}]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [{"color": "#746855"}]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.stroke",
+    "stylers": [{"color": "#1f2835"}]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#f3d19c"}]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [{"color": "#17263c"}]
+  }
+]
+''';
 }
 
 class EmojiParticle {

@@ -9,13 +9,25 @@ import 'src/views/login_page.dart';
 import 'src/views/address_page.dart';
 
 void main() async {
+  // Catch all Flutter errors
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+    debugPrint('Caught Flutter Error: ${details.exception}');
+  };
+
   try {
     WidgetsFlutterBinding.ensureInitialized();
     
-    // Initialize Firebase using --dart-define variables
+    // Check if keys are missing
+    const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+    if (apiKey.isEmpty) {
+      debugPrint('WARNING: FIREBASE_API_KEY is empty. Did you set environment variables?');
+    }
+
+    // Initialize Firebase
     await Firebase.initializeApp(
       options: FirebaseOptions(
-        apiKey: const String.fromEnvironment('FIREBASE_API_KEY'),
+        apiKey: apiKey,
         authDomain: const String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
         projectId: const String.fromEnvironment('FIREBASE_PROJECT_ID'),
         storageBucket: const String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
@@ -26,10 +38,21 @@ void main() async {
     );
 
     runApp(const BlinkiteApp());
-  } catch (e) {
-    debugPrint('Initialization error: $e');
-    // If Firebase fails, we can still show the app, but some features might be missing
-    runApp(const BlinkiteApp());
+  } catch (e, stack) {
+    debugPrint('Fatal initialization error: $e');
+    debugPrint('Stack trace: $stack');
+    
+    // Show error on screen if initialization fails
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: SelectableText('Initialization Error: $e\n\nEnsure you added FIREBASE_* environment variables in the Vercel dashboard.'),
+          ),
+        ),
+      ),
+    ));
   }
 }
 

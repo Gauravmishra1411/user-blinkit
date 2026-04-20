@@ -26,4 +26,4 @@ fi
 
 # Build for web using HTML renderer (more memory efficient for Render free tier)
 echo "Starting Flutter Web build..."
-flutter build web --release --web-renderer html
+flutter build web --release --web-renderer html --tree-shake-icons --base-href /

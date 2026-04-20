@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /assets/
+Disallow: /icons/
+
+Sitemap: https://user-blinkit.vercel.app/sitemap.xml

@@ -1,11 +1,11 @@
 {
-    "name": "blinkite_user",
-    "short_name": "blinkite_user",
+    "name": "Blinkit User Express",
+    "short_name": "Blinkit",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0D0E17",
+    "theme_color": "#3D5AFE",
+    "description": "Fast and secure grocery shopping at your fingertips.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

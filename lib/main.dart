@@ -9,27 +9,31 @@ import 'src/views/login_page.dart';
 import 'src/views/address_page.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load .env file
-  await dotenv.load(fileName: ".env");
-  
-  await Firebase.initializeApp(
-    options: FirebaseOptions(
-      apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
-      authDomain: dotenv.env['FIREBASE_AUTH_DOMAIN'] ?? '',
-      projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
-      storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'] ?? '',
-      messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
-      appId: dotenv.env['FIREBASE_APP_ID'] ?? '',
-      measurementId: dotenv.env['FIREBASE_MEASUREMENT_ID'] ?? '',
-    ),
-  );
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Load .env file
+    await dotenv.load(fileName: ".env");
+    
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: FirebaseOptions(
+        apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
+        authDomain: dotenv.env['FIREBASE_AUTH_DOMAIN'] ?? '',
+        projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
+        storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'] ?? '',
+        messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
+        appId: dotenv.env['FIREBASE_APP_ID'] ?? '',
+        measurementId: dotenv.env['FIREBASE_MEASUREMENT_ID'] ?? '',
+      ),
+    );
 
-  // Initialize Google Sign-In for modern authentication (version 7.0.0+)
-  await GoogleSignIn.instance.initialize();
-  
-  runApp(const BlinkiteApp());
+    runApp(const BlinkiteApp());
+  } catch (e) {
+    debugPrint('Initialization error: $e');
+    // Still run the app so it doesn't just show a white screen if possible
+    runApp(const BlinkiteApp());
+  }
 }
 
 class BlinkiteApp extends StatefulWidget {

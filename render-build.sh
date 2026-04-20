@@ -18,10 +18,22 @@ flutter config --enable-web
 # Get dependencies
 flutter pub get
 
-# Create dummy .env if it doesn't exist (to prevent build failure as it is a required asset)
+# Generate .env file from environment variables (for Vercel/Render deployments)
+echo "Generating .env file from environment variables..."
+cat <<EOF > .env
+FIREBASE_API_KEY=${FIREBASE_API_KEY}
+FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN}
+FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
+FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID}
+FIREBASE_APP_ID=${FIREBASE_APP_ID}
+FIREBASE_MEASUREMENT_ID=${FIREBASE_MEASUREMENT_ID}
+EOF
+
+# Verify .env exists
 if [ ! -f ".env" ]; then
-  echo "Creating dummy .env file..."
-  touch .env
+  echo "Error: Failed to create .env file"
+  exit 1
 fi
 
 # Build for web

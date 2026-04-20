@@ -8,20 +8,21 @@
     "test": "test"
   },
   "scripts": {
+    "build": "bash render-build.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/meganods/blinkituser.git"
+    "url": "git+https://github.com/Gauravmishra1411/user-blinkit.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/meganods/blinkituser/issues"
+    "url": "https://github.com/Gauravmishra1411/user-blinkit/issues"
   },
-  "homepage": "https://github.com/meganods/blinkituser#readme",
+  "homepage": "https://github.com/Gauravmishra1411/user-blinkit#readme",
   "dependencies": {
     "firebase": "^12.12.0"
   }

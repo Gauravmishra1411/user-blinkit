@@ -1,95 +1,37 @@
 import 'package:flutter/material.dart';
+import './address_page.dart'; // To access ProductItem
 
-class ShoeProduct {
-  final String name;
-  final String description;
-  final String price;
-  final String imageUrl;
-  final List<String> availableSizes;
-  final List<Color> availableColors;
-
-  ShoeProduct({
-    required this.name,
-    required this.description,
-    required this.price,
-    required this.imageUrl,
-    this.availableSizes = const ['7', '8', '9', '10', '11'],
-    this.availableColors = const [Colors.black, Colors.white, Colors.blue],
+class ShoesPage extends StatefulWidget {
+  final bool isDarkMode;
+  final List<ProductItem> allProducts;
+  final Map<int, int> initialCart;
+  
+  const ShoesPage({
+    super.key, 
+    required this.isDarkMode,
+    required this.allProducts,
+    required this.initialCart,
   });
+
+  @override
+  State<ShoesPage> createState() => _ShoesPageState();
 }
 
-class ShoesPage extends StatelessWidget {
-  final bool isDarkMode;
-  
-  ShoesPage({super.key, required this.isDarkMode});
+class _ShoesPageState extends State<ShoesPage> {
+  late Map<int, int> _localCart;
+  late List<ProductItem> shoeProducts;
 
-  final List<ShoeProduct> shoes = [
-    ShoeProduct(
-      name: 'REACT ELEMENT 87',
-      description: 'LIGHT BONE',
-      price: '\$130',
-      imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'REACT ELEMENT 87',
-      description: 'ANTHRACITE',
-      price: '\$130',
-      imageUrl: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'AIR FORCE 1 LOW',
-      description: '07 PRM "JUST DO IT"',
-      price: '\$130',
-      imageUrl: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'OFF-WHITE X AIR PRESTO',
-      description: 'BLACK',
-      price: '\$710',
-      imageUrl: 'https://images.unsplash.com/photo-1551107696-a4bc03264639?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'AIR FORCE 1 LOW',
-      description: 'WHITE',
-      price: '\$90',
-      imageUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'SEAN WOTHERSPOON X NIKE',
-      description: 'AIR MAX 1/97',
-      price: '\$790',
-      imageUrl: 'https://images.unsplash.com/photo-1584486520270-19eca1efcce5?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'OFF-WHITE X VAPORMAX',
-      description: 'PART 2 BLACK',
-      price: '\$490',
-      imageUrl: 'https://images.unsplash.com/photo-1543163530-107310df666c?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'ADIDAS YEEZY 350',
-      description: 'TURTLE DOVE',
-      price: '\$450',
-      imageUrl: 'https://images.unsplash.com/photo-1587563871167-1ee9c731aefb?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'NIKE DUNK LOW',
-      description: 'PANDA',
-      price: '\$110',
-      imageUrl: 'https://images.unsplash.com/photo-1628150346041-ca47af830863?w=400&q=80',
-    ),
-    ShoeProduct(
-      name: 'AIR JORDAN 1 RETRO',
-      description: 'UNIVERSITY BLUE',
-      price: '\$180',
-      imageUrl: 'https://images.unsplash.com/photo-1584735175315-9d58238a06cf?w=400&q=80',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _localCart = Map.from(widget.initialCart);
+    shoeProducts = widget.allProducts.where((p) => p.category == 'Shoes').toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isDarkMode ? const Color(0xFF0D0E17) : Colors.white;
-    final textColor = isDarkMode ? Colors.white : Colors.black;
+    final bgColor = widget.isDarkMode ? const Color(0xFF0D0E17) : Colors.white;
+    final textColor = widget.isDarkMode ? Colors.white : Colors.black;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -98,12 +40,39 @@ class ShoesPage extends StatelessWidget {
         elevation: 0.5,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, _localCart),
         ),
-        title: Text('SHOES', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text('PREMIUM FOOTWEAR', style: TextStyle(color: textColor, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.2)),
         actions: [
+          IconButton(
+            icon: Icon(Icons.home_outlined, color: textColor), 
+            onPressed: () => Navigator.pop(context, _localCart)
+          ),
           IconButton(icon: Icon(Icons.search, color: textColor), onPressed: () {}),
-          IconButton(icon: Icon(Icons.shopping_cart_outlined, color: textColor), onPressed: () {}),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: Icon(Icons.shopping_cart_outlined, color: textColor),
+                onPressed: () => Navigator.pop(context, _localCart),
+              ),
+              if (_localCart.values.fold(0, (sum, v) => sum + v) > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(color: const Color(0xFF27C93F), shape: BoxShape.circle),
+                    constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                    child: Text(
+                      '${_localCart.values.fold(0, (sum, v) => sum + v)}',
+                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       body: Column(
@@ -112,29 +81,29 @@ class ShoesPage extends StatelessWidget {
           Container(
             height: 50,
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: isDarkMode ? Colors.white12 : Colors.black12)),
+              border: Border(bottom: BorderSide(color: widget.isDarkMode ? Colors.white12 : Colors.black12)),
             ),
             child: Row(
               children: [
-                _buildFilterItem('CATEGORY', true, isDarkMode),
-                _buildFilterItem('SIZE', false, isDarkMode),
-                _buildFilterItem('COLOR', false, isDarkMode),
-                _buildFilterItem('PRICE', false, isDarkMode),
+                _buildFilterItem('CATEGORY', true, widget.isDarkMode),
+                _buildFilterItem('SIZE', false, widget.isDarkMode),
+                _buildFilterItem('COLOR', false, widget.isDarkMode),
+                _buildFilterItem('PRICE', false, widget.isDarkMode),
               ],
             ),
           ),
-          // Product Grid
+          // Product Grid - Single Column for "Large" effect
           Expanded(
             child: GridView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.58, // Taller ratio to match home cards
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
+                crossAxisCount: 1,
+                childAspectRatio: 0.85, // Balanced large card ratio
+                mainAxisSpacing: 30,
+                crossAxisSpacing: 0,
               ),
-              itemCount: shoes.length,
-              itemBuilder: (context, index) => _buildShoeCard(shoes[index], isDarkMode, context),
+              itemCount: shoeProducts.length,
+              itemBuilder: (context, index) => _buildShoeCard(shoeProducts[index], widget.isDarkMode, context),
             ),
           ),
         ],
@@ -163,124 +132,195 @@ class ShoesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildShoeCard(ShoeProduct shoe, bool isDarkMode, BuildContext context) {
+  Widget _buildShoeCard(ProductItem shoe, bool isDarkMode, BuildContext context) {
     final bool isDark = isDarkMode;
+    final int globalIdx = widget.allProducts.indexOf(shoe);
+    final int qty = _localCart[globalIdx] ?? 0;
     
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E202E) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(30),
         border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F1F1), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 25,
+            offset: const Offset(0, 15),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image Area
-          Expanded(
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Center(
-                    child: Image.network(shoe.imageUrl, fit: BoxFit.contain),
-                  ),
-                ),
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Icon(Icons.favorite_border, size: 16, color: isDark ? Colors.white38 : Colors.black38),
-                ),
-              ],
-            ),
-          ),
-          // Details Area
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Delivery Timer (Reusable logic from Home)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFF3F3F3),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.timer_outlined, size: 11, color: isDark ? Colors.white70 : Colors.black87),
-                      const SizedBox(width: 4),
-                      Text('12 MINS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: isDark ? Colors.white70 : Colors.black87)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  shoe.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : Colors.black,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  shoe.description,
-                  maxLines: 1,
-                  style: TextStyle(fontSize: 11, color: isDark ? Colors.white38 : Colors.black38),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      shoe.price,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : Colors.black,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Large Image Area
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    color: isDark ? Colors.white.withOpacity(0.02) : const Color(0xFFF9F9F9),
+                    child: Padding(
+                      padding: const EdgeInsets.all(30.0),
+                      child: Hero(
+                        tag: shoe.imageUrl + shoe.name,
+                        child: Image.network(
+                          shoe.imageUrl,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
-                    // "ADD" Button consistent with Home Screen
-                    GestureDetector(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Added to basket'), duration: Duration(seconds: 1)),
-                        );
-                      },
-                      child: Container(
-                        width: 60,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF27C93F).withOpacity(0.1) : const Color(0xFFF7FFF9),
-                          border: Border.all(color: const Color(0xFF27C93F), width: 1.5),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'ADD',
-                            style: TextStyle(color: Color(0xFF27C93F), fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                  Positioned(
+                    top: 20,
+                    right: 20,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+                      ),
+                      child: const Icon(Icons.favorite_border, size: 22, color: Colors.black87),
+                    ),
+                  ),
+                  Positioned(
+                    top: 20,
+                    left: 20,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'NEW ARRIVAL',
+                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Details Area
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Delivery Timer
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27C93F).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.timer_outlined, size: 14, color: Color(0xFF27C93F)),
+                              const SizedBox(width: 6),
+                              Text('12 MINS DELIVERY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: const Color(0xFF27C93F))),
+                            ],
                           ),
                         ),
+                        Text(
+                          shoe.price,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      shoe.name,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : Colors.black,
+                        height: 1.1,
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      shoe.size, // Using size for the subtitle description in ProductItem
+                      style: TextStyle(fontSize: 14, color: isDark ? Colors.white38 : Colors.black45, letterSpacing: 0.5),
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        // Sizes Preview
+                        Expanded(
+                          child: Row(
+                            children: ['7', '8', '9', '10'].map((s) => Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(child: Text(s, style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.bold))),
+                            )).toList(),
+                          ),
+                        ),
+                        // "ADD" Button consistent with Home Screen - Larger
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _localCart[globalIdx] = (_localCart[globalIdx] ?? 0) + 1;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${shoe.name} added to basket (Total: ${_localCart[globalIdx]})'), 
+                                duration: const Duration(seconds: 1)
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: qty > 0 ? const Color(0xFF27C93F).withOpacity(0.12) : const Color(0xFF27C93F),
+                              borderRadius: BorderRadius.circular(16),
+                              border: qty > 0 ? Border.all(color: const Color(0xFF27C93F), width: 1) : null,
+                              boxShadow: qty > 0 ? null : [
+                                BoxShadow(
+                                  color: const Color(0xFF27C93F).withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              qty > 0 ? 'ADD MORE ($qty)' : 'ADD TO CART',
+                              style: TextStyle(
+                                color: qty > 0 ? const Color(0xFF27C93F) : Colors.white, 
+                                fontSize: 13, 
+                                fontWeight: FontWeight.w900, 
+                                letterSpacing: 0.5
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -11,6 +11,7 @@ import '../widgets/kb_logo.dart';
 import './blog_page.dart';
 import './shoes_page.dart';
 import './bags_page.dart';
+import './about_page.dart';
 
 class Product {
   final String name;
@@ -317,6 +318,17 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     ProductItem(name: 'Milky Mist Thick Curd', size: '400 g', price: '₹40', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
     ProductItem(name: 'Amul Masti Spiced Buttermilk', size: '200 ml', price: '₹25', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
     ProductItem(name: 'Britannia Milk Rusk', size: '290 g', price: '₹55', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
+    // Shoes Category
+    ProductItem(name: 'REACT ELEMENT 87', size: 'LIGHT BONE', price: '₹10660', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'REACT ELEMENT 87', size: 'ANTHRACITE', price: '₹10660', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'AIR FORCE 1 LOW', size: '07 PRM "JUST DO IT"', price: '₹10660', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'OFF-WHITE X AIR PRESTO', size: 'BLACK', price: '₹58220', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1551107696-a4bc03264639?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'AIR FORCE 1 LOW', size: 'WHITE', price: '₹7380', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'SEAN WOTHERSPOON X NIKE', size: 'AIR MAX 1/97', price: '₹64780', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1584486520270-19eca1efcce5?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'OFF-WHITE X VAPORMAX', size: 'PART 2 BLACK', price: '₹40180', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1543163530-107310df666c?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'ADIDAS YEEZY 350', size: 'TURTLE DOVE', price: '₹36900', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1587563871167-1ee9c731aefb?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'NIKE DUNK LOW', size: 'PANDA', price: '₹9020', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1628150346041-ca47af830863?w=400&q=80', category: 'Shoes'),
+    ProductItem(name: 'AIR JORDAN 1 RETRO', size: 'UNIVERSITY BLUE', price: '₹14760', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1584735175315-9d58238a06cf?w=400&q=80', category: 'Shoes'),
   ];
 
   String get _categoryMessage {
@@ -487,12 +499,24 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                         return _CategoryHoverCard(
                           category: categories[index],
                           isDark: isDark,
-                          onTap: () {
+                          onTap: () async {
                             if (categories[index].label == 'Shoes') {
-                              Navigator.push(
+                              final updatedCart = await Navigator.push<Map<int, int>>(
                                 context,
-                                MaterialPageRoute(builder: (context) => ShoesPage(isDarkMode: isDark)),
+                                MaterialPageRoute(
+                                  builder: (context) => ShoesPage(
+                                    isDarkMode: isDark,
+                                    allProducts: allProducts,
+                                    initialCart: Map.from(_productQty),
+                                  ),
+                                ),
                               );
+                              if (updatedCart != null) {
+                                setState(() {
+                                  _productQty.clear();
+                                  _productQty.addAll(updatedCart);
+                                });
+                              }
                               return;
                             }
                             setState(() => _selectedCategoryIndex = index);
@@ -2965,12 +2989,24 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   Widget _buildSmallBanner(String title, String subtitle, String tag, String img, Color tagColor) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         if (title.contains('Shoes')) {
-          Navigator.push(
+          final updatedCart = await Navigator.push<Map<int, int>>(
             context,
-            MaterialPageRoute(builder: (context) => ShoesPage(isDarkMode: isDark)),
+            MaterialPageRoute(
+              builder: (context) => ShoesPage(
+                isDarkMode: isDark,
+                allProducts: allProducts,
+                initialCart: Map.from(_productQty),
+              ),
+            ),
           );
+          if (updatedCart != null) {
+            setState(() {
+              _productQty.clear();
+              _productQty.addAll(updatedCart);
+            });
+          }
         }
       },
       child: Container(
@@ -3176,9 +3212,23 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     );
   }
 
-  void _onFooterLinkTap(String title) {
-    if (title.toUpperCase() == 'BLOG') {
+  void _onFooterLinkTap(String title) async {
+    final t = title.toUpperCase();
+    if (t == 'HOME') {
+      _mainScrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+      return;
+    }
+    if (t == 'SHOP') {
+      // Scroll to categories (approx 200px down)
+      _mainScrollController.animateTo(200, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+      return;
+    }
+    if (t == 'BLOG') {
       Navigator.push(context, MaterialPageRoute(builder: (context) => BlogPage(isDarkMode: isDark)));
+      return;
+    }
+    if (t == 'ABOUT US') {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => AboutPage(isDarkMode: isDark)));
       return;
     }
     if (title.toUpperCase() == 'BAGS') {
@@ -3186,7 +3236,22 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       return;
     }
     if (title.toUpperCase() == 'SHOES') {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => ShoesPage(isDarkMode: isDark)));
+      final updatedCart = await Navigator.push<Map<int, int>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShoesPage(
+            isDarkMode: isDark,
+            allProducts: allProducts,
+            initialCart: Map.from(_productQty),
+          ),
+        ),
+      );
+      if (updatedCart != null) {
+        setState(() {
+          _productQty.clear();
+          _productQty.addAll(updatedCart);
+        });
+      }
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(

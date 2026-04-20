@@ -82,7 +82,7 @@ class OrdersPage extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      // Card Header (Green for active/success)
+                      // Card Header
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         decoration: BoxDecoration(
@@ -133,86 +133,88 @@ class OrdersPage extends StatelessWidget {
                         ),
                       ),
                       
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (order['timer'] != null) ...[
-                              Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      // Card Body: Map (Left) + Content (Right)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Map Section (Left side as requested)
+                          Expanded(
+                            flex: 4,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 0, 20),
+                              child: _OrderTrackingMap(
+                                isDarkMode: isDark,
+                                status: order['status'],
+                                timer: order['timer'],
+                              ),
+                            ),
+                          ),
+                          
+                          // 2. Content Section (Right)
+                          Expanded(
+                            flex: 5,
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Order Summary',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : Colors.black,
+                                      letterSpacing: 0.5,
+                                    ),
                                   ),
-                                  child: Column(
+                                  const SizedBox(height: 12),
+                                  ... (order['items'] as List).map((item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Row(
+                                      children: [
+                                        Text('${item['qty']}x ', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                        Expanded(
+                                          child: Text(
+                                            item['name'],
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: isDark ? Colors.white70 : Colors.black87,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '₹${item['price']}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: isDark ? Colors.white : Colors.black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                                  const Divider(height: 24),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      const Text('Arriving in', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold)),
+                                      const Text('Total', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                                       Text(
-                                        order['timer'],
-                                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.orange),
+                                        '₹${order['amount']}',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF2D7A3E),
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                            ],
-                            
-                            Text(
-                              'Order Summary',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ... (order['items'] as List).map((item) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                children: [
-                                  Text('${item['qty']}x ', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                  Expanded(
-                                    child: Text(
-                                      item['name'],
-                                      style: TextStyle(
-                                        color: isDark ? Colors.white70 : Colors.black87,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    '₹${item['price']}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: isDark ? Colors.white : Colors.black,
-                                    ),
-                                  ),
                                 ],
                               ),
-                            )),
-                            const Divider(height: 32),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Total Amount', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                Text(
-                                  '₹${order['amount']}',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF2D7A3E),
-                                  ),
-                                ),
-                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -221,4 +223,214 @@ class OrdersPage extends StatelessWidget {
             ),
     );
   }
+}
+
+class _OrderTrackingMap extends StatelessWidget {
+  final bool isDarkMode;
+  final String status;
+  final String? timer;
+
+  const _OrderTrackingMap({
+    required this.isDarkMode,
+    required this.status,
+    this.timer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        color: isDarkMode ? Colors.black26 : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.05)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Placeholder for Google Map / Flutter Map
+            Image.network(
+              isDarkMode 
+                ? 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&q=80' // Darkish city map look
+                : 'https://images.unsplash.com/photo-1569336415962-a4bd9f6dfc0f?w=600&q=80', // Light city map look
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            
+            // Route Line (Visual representation)
+            if (status == 'Arriving')
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _RoutePainter(isDarkMode: isDarkMode),
+                ),
+              ),
+
+            // Pick location (Store)
+            Positioned(
+              top: 40,
+              left: 40,
+              child: _MapMarker(
+                icon: Icons.store,
+                color: Colors.blueAccent,
+                label: 'Pick',
+              ),
+            ),
+
+            // Drop location (Home)
+            Positioned(
+              bottom: 40,
+              right: 40,
+              child: _MapMarker(
+                icon: Icons.home,
+                color: const Color(0xFF2D7A3E),
+                label: 'Drop',
+              ),
+            ),
+
+            // Delivery boy moving (Only if arriving)
+            if (status == 'Arriving')
+              const Positioned(
+                bottom: 80,
+                right: 80,
+                child: _MovingDeliveryAgent(),
+              ),
+
+            // Arriving Overlay
+            if (timer != null)
+              Positioned(
+                bottom: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.24), blurRadius: 4)],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, size: 10, color: Colors.orange),
+                      const SizedBox(width: 4),
+                      Text(
+                        timer!,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapMarker extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _MapMarker({required this.icon, required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+          child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+}
+
+class _MovingDeliveryAgent extends StatefulWidget {
+  const _MovingDeliveryAgent();
+
+  @override
+  State<_MovingDeliveryAgent> createState() => _MovingDeliveryAgentState();
+}
+
+class _MovingDeliveryAgentState extends State<_MovingDeliveryAgent> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(-10 * _controller.value, -10 * _controller.value),
+          child: child,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+        child: const Icon(Icons.delivery_dining, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _RoutePainter extends CustomPainter {
+  final bool isDarkMode;
+  _RoutePainter({required this.isDarkMode});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isDarkMode ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.26)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path()
+      ..moveTo(60, 60)
+      ..lineTo(size.width * 0.4, 70)
+      ..lineTo(size.width * 0.5, 120)
+      ..lineTo(size.width * 0.8, size.height - 60);
+
+    canvas.drawPath(path, paint);
+
+    // Draw active part of route
+    final activePaint = Paint()
+      ..color = const Color(0xFF2D7A3E)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    
+    final activePath = Path()
+      ..moveTo(60, 60)
+      ..lineTo(size.width * 0.4, 70)
+      ..lineTo(size.width * 0.5, 120);
+      
+    canvas.drawPath(activePath, activePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

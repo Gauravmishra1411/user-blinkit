@@ -86,6 +86,13 @@ class BagsPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text('Bags Collection', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home_outlined, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {

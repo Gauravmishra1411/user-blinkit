@@ -24,6 +24,6 @@ if [ ! -f ".env" ]; then
   touch .env
 fi
 
-# Build for web using HTML renderer (more memory efficient for Render free tier)
+# Build for web
 echo "Starting Flutter Web build..."
-flutter build web --release --web-renderer html --tree-shake-icons --base-href /
+flutter build web --release --tree-shake-icons --base-href /

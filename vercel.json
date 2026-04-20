@@ -5,8 +5,7 @@
   "outputDirectory": "build/web",
   "routes": [
     {
-      "src": "/(assets/.*)",
-      "dest": "/$1"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",

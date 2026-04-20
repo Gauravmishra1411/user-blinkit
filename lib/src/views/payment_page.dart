@@ -598,7 +598,6 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D0E17) : const Color(0xFFF5F7F9),
       body: Stack(
@@ -645,7 +644,7 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Container(
-                    width: math.min(MediaQuery.of(context).size.width * 0.9, 450),
+                    width: math.min(MediaQuery.of(context).size.width * 0.9, 900),
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF1F202D) : Colors.white,
                       borderRadius: BorderRadius.circular(24),
@@ -660,7 +659,7 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Header with status
+                        // Header with status (Full Width)
                         Container(
                           padding: const EdgeInsets.symmetric(vertical: 24),
                           width: double.infinity,
@@ -685,130 +684,140 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
                               ),
                             ],
                           ),
-                          ),
                         ),
                         
-                        // Map Section
-                        Container(
-                          height: 200,
-                          width: double.infinity,
-                          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: _isMapLoading 
-                              ? const Center(child: CircularProgressIndicator())
-                              : GoogleMap(
-                                  initialCameraPosition: CameraPosition(
-                                    target: _pickupLocation,
-                                    zoom: 12,
-                                  ),
-                                  onMapCreated: (controller) {
-                                    _mapController = controller;
-                                    if (_currentPosition != null) _fitBounds();
-                                  },
-                                  markers: _markers,
-                                  polylines: _polylines,
-                                  zoomControlsEnabled: false,
-                                  myLocationButtonEnabled: false,
-                                  mapToolbarEnabled: false,
-                                  style: isDark ? _darkMapStyle : null,
-                                ),
-                          ),
-                        ),
-
-                        Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                                // Timer Section
-                              Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      const Text('Arriving in', style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold)),
-                                      Text(
-                                        _formatTime(_secondsRemaining),
-                                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.orange),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              
-                              // User & Order Info Card
-                              Container(
-                                padding: const EdgeInsets.all(16),
+                        // Side-by-side content
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Map Section (Left side)
+                            Expanded(
+                              flex: 5,
+                              child: Container(
+                                height: 500, // Matching the height of the details
+                                margin: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
                                 ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: _isMapLoading 
+                                    ? const Center(child: CircularProgressIndicator())
+                                    : GoogleMap(
+                                        initialCameraPosition: CameraPosition(
+                                          target: _pickupLocation,
+                                          zoom: 12,
+                                        ),
+                                        onMapCreated: (controller) {
+                                          _mapController = controller;
+                                          if (_currentPosition != null) _fitBounds();
+                                        },
+                                        markers: _markers,
+                                        polylines: _polylines,
+                                        zoomControlsEnabled: false,
+                                        myLocationButtonEnabled: false,
+                                        mapToolbarEnabled: false,
+                                        style: isDark ? _darkMapStyle : null,
+                                      ),
+                                ),
+                              ),
+                            ),
+
+                            // Order Details Section (Right side)
+                            Expanded(
+                              flex: 6,
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildInfoRow('User Name', widget.userName, isDark),
-                                    _buildInfoRow('User ID', widget.userId, isDark),
-                                    const Divider(height: 24),
-                                    _buildInfoRow('Order ID', widget.orderId, isDark),
-                                    _buildInfoRow('Payment Mode', widget.paymentMode, isDark),
-                                    if (widget.transactionId != null)
-                                      _buildInfoRow('Transaction ID', widget.transactionId!, isDark),
-                                    _buildInfoRow('Status', widget.status, isDark, valueColor: widget.status == 'Online' ? Colors.blue : Colors.orange),
+                                      // Timer Section
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          const Text('Arriving in', style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold)),
+                                          Text(
+                                            _formatTime(_secondsRemaining),
+                                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.orange),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    
+                                    // User & Order Info Card
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          _buildInfoRow('User Name', widget.userName, isDark),
+                                          _buildInfoRow('User ID', widget.userId, isDark),
+                                          const Divider(height: 16),
+                                          _buildInfoRow('Order ID', widget.orderId, isDark),
+                                          _buildInfoRow('Payment Mode', widget.paymentMode, isDark),
+                                          if (widget.transactionId != null)
+                                            _buildInfoRow('Transaction ID', widget.transactionId!, isDark),
+                                          _buildInfoRow('Status', widget.status, isDark, valueColor: widget.status == 'Online' ? Colors.blue : Colors.orange),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    
+                                    Text('Product Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                                    const SizedBox(height: 8),
+                                    ...widget.cartItems.map((item) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Row(
+                                        children: [
+                                          Text('${item['qty']}x ', style: const TextStyle(color: Colors.grey)),
+                                          Expanded(child: Text(item['name'], style: TextStyle(color: isDark ? Colors.white70 : Colors.black87))),
+                                          Text('₹${item['price']}', style: TextStyle(fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black)),
+                                        ],
+                                      ),
+                                    )),
+                                    const Divider(height: 20),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                        Text('₹${widget.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D7A3E))),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 24),
+                                    
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 50,
+                                      child: ElevatedButton(
+                                        onPressed: () => Navigator.of(context).pop(),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF2D7A3E),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          elevation: 0,
+                                        ),
+                                        child: const Text('Back to Home', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 24),
-                              
-                              Text('Product Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                              const SizedBox(height: 8),
-                              ...widget.cartItems.map((item) => Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  children: [
-                                    Text('${item['qty']}x ', style: const TextStyle(color: Colors.grey)),
-                                    Expanded(child: Text(item['name'], style: TextStyle(color: isDark ? Colors.white70 : Colors.black87))),
-                                    Text('₹${item['price']}', style: TextStyle(fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black)),
-                                  ],
-                                ),
-                              )),
-                              const Divider(height: 32),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                  Text('₹${widget.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D7A3E))),
-                                ],
-                              ),
-                              const SizedBox(height: 32),
-                              
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: ElevatedButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2D7A3E),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text('Back to Home', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

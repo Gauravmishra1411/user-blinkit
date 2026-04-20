@@ -12,8 +12,14 @@ fi
 # Add Flutter to path
 export PATH="$PATH:$(pwd)/flutter/bin"
 
+# Increase memory for Dart VM to prevent build crashes
+export DART_VM_OPTIONS="--max-old-space-size=3072"
+
 # Enable Web
 flutter config --enable-web
+
+# Clear build cache to free up memory
+flutter clean
 
 # Get dependencies
 flutter pub get
@@ -27,7 +33,7 @@ if [ -z "$FIREBASE_API_KEY" ]; then
 fi
 
 flutter build web --release \
-  --tree-shake-icons \
+  -O2 \
   --base-href / \
   --dart-define="FIREBASE_API_KEY=$FIREBASE_API_KEY" \
   --dart-define="FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN" \

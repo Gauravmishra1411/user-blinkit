@@ -33,6 +33,10 @@ void main() async {
     const fMeas = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
 
     final apiKey = fKey.isNotEmpty ? fKey : dotenv.get('FIREBASE_API_KEY', fallback: "");
+    
+    debugPrint('Firebase App Initializing...');
+    debugPrint('API Key Status: ${apiKey.isNotEmpty ? "Available (${apiKey.substring(0, 5)}...)" : "MISSING"}');
+    debugPrint('Project ID: ${fProj.isNotEmpty ? fProj : dotenv.get('FIREBASE_PROJECT_ID', fallback: "MISSING")}');
 
     await Firebase.initializeApp(
       options: FirebaseOptions(

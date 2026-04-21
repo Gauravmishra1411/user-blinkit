@@ -406,7 +406,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     try {
       await _authService.login(email, password);
     } on FirebaseAuthException catch (e) {
-      _showError(e.message ?? 'An error occurred during login');
+      debugPrint('Login Error: ${e.code} - ${e.message}');
+      _showError('${e.code}: ${e.message ?? 'An error occurred during login'}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -444,7 +445,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       } else if (e.code == 'operation-not-allowed') {
         _showError('Email/password sign-up is disabled in Firebase Console.');
       } else {
-        _showError(e.message ?? 'Sign-up failed: ${e.code}');
+        _showError('${e.code}: ${e.message ?? "Sign-up failed"}');
       }
     } catch (e) {
       debugPrint('Error during sign up: $e');

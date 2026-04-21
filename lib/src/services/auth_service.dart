@@ -8,8 +8,8 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
-  // google_sign_in 7.x is a singleton
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  // Initialize GoogleSignIn standard way
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   bool _isGoogleInitialized = false;
 
   AuthService() {

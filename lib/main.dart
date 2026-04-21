@@ -18,22 +18,31 @@ void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
     
-    // Check if keys are missing
-    const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
-    if (apiKey.isEmpty) {
-      debugPrint('WARNING: FIREBASE_API_KEY is empty. Did you set environment variables?');
-    }
+    // Load .env for local development
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (_) {}
 
-    // Initialize Firebase
+    // Get values from flags or .env fallback
+    const fKey = String.fromEnvironment('FIREBASE_API_KEY');
+    const fAuth = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+    const fProj = String.fromEnvironment('FIREBASE_PROJECT_ID');
+    const fStor = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+    const fMess = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+    const fApp = String.fromEnvironment('FIREBASE_APP_ID');
+    const fMeas = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
+
+    final apiKey = fKey.isNotEmpty ? fKey : dotenv.get('FIREBASE_API_KEY', fallback: "");
+
     await Firebase.initializeApp(
       options: FirebaseOptions(
         apiKey: apiKey,
-        authDomain: const String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
-        projectId: const String.fromEnvironment('FIREBASE_PROJECT_ID'),
-        storageBucket: const String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
-        messagingSenderId: const String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
-        appId: const String.fromEnvironment('FIREBASE_APP_ID'),
-        measurementId: const String.fromEnvironment('FIREBASE_MEASUREMENT_ID'),
+        authDomain: fAuth.isNotEmpty ? fAuth : dotenv.get('FIREBASE_AUTH_DOMAIN', fallback: ""),
+        projectId: fProj.isNotEmpty ? fProj : dotenv.get('FIREBASE_PROJECT_ID', fallback: ""),
+        storageBucket: fStor.isNotEmpty ? fStor : dotenv.get('FIREBASE_STORAGE_BUCKET', fallback: ""),
+        messagingSenderId: fMess.isNotEmpty ? fMess : dotenv.get('FIREBASE_MESSAGING_SENDER_ID', fallback: ""),
+        appId: fApp.isNotEmpty ? fApp : dotenv.get('FIREBASE_APP_ID', fallback: ""),
+        measurementId: fMeas.isNotEmpty ? fMeas : dotenv.get('FIREBASE_MEASUREMENT_ID', fallback: ""),
       ),
     );
 
@@ -96,38 +105,20 @@ class _BlinkiteAppState extends State<BlinkiteApp> {
                 brightness: Brightness.light,
               ),
             ),
-      home: FutureBuilder<bool>(
-        future: _checkMockLogin(),
-        builder: (context, mockSnapshot) {
-          if (mockSnapshot.connectionState == ConnectionState.waiting) {
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
           
-          if (mockSnapshot.data == true) {
+          if (snapshot.hasData) {
             return AddressPage(onThemeToggle: _toggleTheme, isDarkMode: _isDarkMode);
           }
 
-          return StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, firebaseSnapshot) {
-              if (firebaseSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(body: Center(child: CircularProgressIndicator()));
-              }
-              
-              if (firebaseSnapshot.hasData) {
-                return AddressPage(onThemeToggle: _toggleTheme, isDarkMode: _isDarkMode);
-              }
-
-              return LoginPage(onThemeToggle: _toggleTheme, isDarkMode: _isDarkMode);
-            },
-          );
+          return LoginPage(onThemeToggle: _toggleTheme, isDarkMode: _isDarkMode);
         },
       ),
     );
-  }
-
-  Future<bool> _checkMockLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('isMockLoggedIn') ?? false;
   }
 }

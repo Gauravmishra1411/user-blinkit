@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import './add_address_page.dart';
 import './payment_page.dart';
 import './orders_page.dart';
@@ -13,40 +14,8 @@ import './shoes_page.dart';
 import './bags_page.dart';
 import './about_page.dart';
 
-class Product {
-  final String name;
-  final String image;
-  final double price;
-
-  Product({
-    required this.name,
-    required this.image,
-    required this.price,
-  });
-}
-
-Map<String, List<Product>> categoryProducts = {
-  "Fruits & Vegetables": List.generate(10, (i) => Product(name: "Vegetable ${i+1}", image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&fit=crop", price: 20.0 + i)),
-  "Snacks & Munchies": List.generate(10, (i) => Product(name: "Snack ${i+1}", image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&fit=crop", price: 15.0 + i)),
-  "Dairy, Bread & Eggs": List.generate(10, (i) => Product(name: "Dairy ${i+1}", image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&fit=crop", price: 30.0 + i)),
-  "Cold Drinks & Juices": List.generate(10, (i) => Product(name: "Drink ${i+1}", image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&fit=crop", price: 25.0 + i)),
-  "Paan Corner": List.generate(10, (i) => Product(name: "Paan Item ${i+1}", image: "https://images.unsplash.com/photo-1626074353765-517a681e40be?w=400&fit=crop", price: 10.0 + i)),
-  "Breakfast & Instant Food": List.generate(10, (i) => Product(name: "Breakfast ${i+1}", image: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400&fit=crop", price: 40.0 + i)),
-  "Masala, Oil & More": List.generate(10, (i) => Product(name: "Spice ${i+1}", image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&fit=crop", price: 50.0 + i)),
-  "Sauces & Spreads": List.generate(10, (i) => Product(name: "Sauce ${i+1}", image: "https://images.unsplash.com/photo-1470333738027-5082f71b897f?w=400&fit=crop", price: 45.0 + i)),
-  "Chicken, Meat & Fish": List.generate(10, (i) => Product(name: "Meat ${i+1}", image: "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&fit=crop", price: 120.0 + i)),
-  "Organic & Healthy": List.generate(10, (i) => Product(name: "Healthy ${i+1}", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&fit=crop", price: 80.0 + i)),
-  "Baby Care": List.generate(10, (i) => Product(name: "Baby ${i+1}", image: "https://images.unsplash.com/photo-1515488435882-6242a8a86071?w=400&fit=crop", price: 200.0 + i)),
-  "Pharma & Wellness": List.generate(10, (i) => Product(name: "Pharma ${i+1}", image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?w=400&fit=crop", price: 15.0 + i)),
-  "Cleaning Essentials": List.generate(10, (i) => Product(name: "Clean ${i+1}", image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&fit=crop", price: 90.0 + i)),
-  "Home & Office": List.generate(10, (i) => Product(name: "Work ${i+1}", image: "https://images.unsplash.com/photo-1593060974447-0985da33568c?w=400&fit=crop", price: 300.0 + i)),
-  "Personal Care": List.generate(10, (i) => Product(name: "Care ${i+1}", image: "https://images.unsplash.com/photo-1522066804558-fcd05b819e6f?w=400&fit=crop", price: 55.0 + i)),
-  "Pet Care": List.generate(10, (i) => Product(name: "Pet ${i+1}", image: "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&fit=crop", price: 110.0 + i)),
-  "Bakery & Biscuits": List.generate(10, (i) => Product(name: "Bake ${i+1}", image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&fit=crop", price: 35.0 + i)),
-  "Tea & Coffee": List.generate(10, (i) => Product(name: "Tea ${i+1}", image: "https://images.unsplash.com/photo-1544787210-22d2dc479b7b?w=400&fit=crop", price: 25.0 + i)),
-  "Atta & Rice": List.generate(10, (i) => Product(name: "Atta ${i+1}", image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&fit=crop", price: 60.0 + i)),
-  "Sweet Tooth": List.generate(10, (i) => Product(name: "Sweet ${i+1}", image: "https://images.unsplash.com/photo-1532117892888-38437812674e?w=400&fit=crop", price: 40.0 + i)),
-};
+// Unified models are now imported or defined below.
+// Removed hardcoded categoryProducts map.
 
 class CategoryItem {
   final String label;
@@ -96,6 +65,51 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   int _selectedCategoryIndex = 0;
+
+  List<ProductItem> allProducts = [];
+  StreamSubscription? _productSubscription;
+  StreamSubscription? _categorySubscription;
+  StreamSubscription? _bannerSubscription;
+  late ScrollController _mainScrollController;
+  late ScrollController _categoryScrollController;
+  double _scrollOffset = 0;
+
+  List<CategoryItem> categories = [];
+
+  final List<ProductItem> _fallbackProducts = [
+    ProductItem(
+      name: 'Fresh Milk',
+      size: '500ml',
+      price: '₹35',
+      deliveryMins: '15-20',
+      imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&fit=crop',
+      category: 'Dairy, Bread & Eggs',
+    ),
+    ProductItem(
+      name: 'Organic Tomatoes',
+      size: '500g',
+      price: '₹45',
+      deliveryMins: '15-20',
+      imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&fit=crop',
+      category: 'Fruits & Vegetables',
+    ),
+    ProductItem(
+      name: 'Cold Coffee',
+      size: '200ml',
+      price: '₹60',
+      deliveryMins: '15-20',
+      imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&fit=crop',
+      category: 'Cold Drinks & Juices',
+    ),
+    ProductItem(
+      name: 'Potato Chips',
+      size: '100g',
+      price: '₹20',
+      deliveryMins: '15-20',
+      imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&fit=crop',
+      category: 'Snacks & Munchies',
+    ),
+  ];
   final Map<int, int> _productQty = {}; // productIndex -> qty
   final Set<int> _favoriteProducts = {}; // Successfully mocked favorites
   bool _isDonationEnabled = false;
@@ -135,26 +149,13 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   ];
   int _placeholderIndex = 0;
   Timer? _placeholderTimer;
-  late ScrollController _categoryScrollController;
 
-  final List<Map<String, String>> foodData = [
+  List<Map<String, String>> foodData = [
     {
       "title": "Non-boring recipes",
       "subtitle": "from the chef's chef",
       "offer": "FREE BOOK",
       "img": "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=800&fit=crop",
-    },
-    {
-      "title": "Chips & Namkeen",
-      "subtitle": "Crispy & Delicious Snacks",
-      "offer": "Buy 1 Get 1",
-      "img": "assets/images/download.jpg",
-    },
-    {
-      "title": "Fresh Wheat Flour",
-      "subtitle": "100% Pure & Stone Ground",
-      "offer": "Flat 20% OFF",
-      "img": "assets/images/Grau.jpg",
     },
   ];
 
@@ -165,10 +166,14 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   double get itemsTotal {
     double total = 0;
     _productQty.forEach((index, qty) {
-      final product = allProducts[index];
-      final priceStr = product.price.replaceAll(RegExp(r'[^0-9.]'), '');
-      final price = double.tryParse(priceStr) ?? 0;
-      total += price * qty;
+      if (index >= 0 && index < allProducts.length) {
+        final product = allProducts[index];
+        final priceStr = product.price.replaceAll(RegExp(r'[^0-9.]'), '');
+        final price = double.tryParse(priceStr) ?? 0;
+        total += price * qty;
+      } else {
+        debugPrint('Warning: Invalid index $index in _productQty (allProducts.length: ${allProducts.length})');
+      }
     });
     return total;
   }
@@ -177,181 +182,10 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   int get totalCartItems => _productQty.values.fold(0, (sum, val) => sum + val);
 
-  final List<CategoryItem> categories = [
-    CategoryItem(label: 'Dairy, Bread & Eggs', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&h=600&fit=crop', color: const Color(0xFFE8F5E9)),
-    CategoryItem(label: 'Fruits & Vegetables', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&h=600&fit=crop', color: const Color(0xFFFFF3E0)),
-    CategoryItem(label: 'Cold Drinks & Juices', imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&h=600&fit=crop', color: const Color(0xFFF3E5F5)),
-    CategoryItem(label: 'Snacks & Munchies', imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&h=600&fit=crop', color: const Color(0xFFE1F5FE)),
-    CategoryItem(label: 'Breakfast & Fast Food', imageUrl: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400&h=600&fit=crop', color: const Color(0xFFFFFDE7)),
-    CategoryItem(label: 'Chicken & Meat', imageUrl: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&h=600&fit=crop', color: const Color(0xFFFFEBEE)),
-    CategoryItem(label: 'Organic & Healthy', imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&h=600&fit=crop', color: const Color(0xFFE0F2F1)),
-    CategoryItem(label: 'Baby Care', imageUrl: 'https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=400&h=600&fit=crop', color: const Color(0xFFFFF1F1)),
-    CategoryItem(label: 'Personal Care', imageUrl: 'https://images.unsplash.com/photo-1522066804558-fcd05b819e6f?w=400&h=600&fit=crop', color: const Color(0xFFFDF5E6)),
-    CategoryItem(label: 'Cleaning Essentials', imageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&h=600&fit=crop', color: const Color(0xFFF5F5F5)),
-    CategoryItem(label: 'Home & Office', imageUrl: 'https://images.unsplash.com/photo-1593060974447-0985da33568c?w=400&h=600&fit=crop', color: const Color(0xFFEFEBE9)),
-    CategoryItem(label: 'Pet Care', imageUrl: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&h=600&fit=crop', color: const Color(0xFFF0F4C3)),
-    CategoryItem(label: 'Bakery & Biscuits', imageUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&h=600&fit=crop', color: const Color(0xFFFFF8E1)),
-    CategoryItem(label: 'Tea & Coffee', imageUrl: 'https://images.unsplash.com/photo-1544787210-22d2dc479b7b?w=400&h=600&fit=crop', color: const Color(0xFFE0F2F1)),
-    CategoryItem(label: 'Shoes', imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=600&fit=crop', color: const Color(0xFFF0F0F0)),
-  ];
-
-  final List<ProductItem> allProducts = [
-    // All / Dairy, Bread & Eggs
-    ProductItem(name: 'Amul Gold Full Cream Milk', size: '500 ml', price: '₹35', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&h=400', 'https://images.unsplash.com/photo-1563636619-e910dc4939a8?w=400&h=400']),
-    ProductItem(name: 'Britannia Whole Wheat Bread', size: '400 g', price: '₹42', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400', 'https://images.unsplash.com/photo-1559811814-e2c573a7aa92?w=400&h=400']),
-    ProductItem(name: 'Farm Fresh Eggs', size: '6 pcs', price: '₹58', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=400&h=400', 'https://images.unsplash.com/photo-1498654077810-12c21d4d6dc3?w=400&h=400']),
-    ProductItem(name: 'Amul Butter Salted', size: '100 g', price: '₹56', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=400&h=400', 'https://images.unsplash.com/photo-1589923188900-85dae523342b?w=400&h=400']),
-    ProductItem(name: 'Parle-G Biscuits', size: '800 g', price: '₹50', deliveryMins: '10', imageUrl: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&h=400', 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&h=400']),
-    ProductItem(name: 'Aashirvaad Atta', size: '5 kg', price: '₹275', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400&h=400', 'https://images.unsplash.com/photo-1543258103-a62bdc019964?w=400&h=400']),
-    ProductItem(name: 'Fortune Sunflower Oil', size: '1 L', price: '₹148', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400']),
-    ProductItem(name: 'Tata Salt', size: '1 kg', price: '₹22', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1588315029754-2dd089d39a1a?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1588315029754-2dd089d39a1a?w=400&h=400']),
-    ProductItem(name: 'Maggi 2-Minute Noodles', size: '560 g', price: '₹82', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=200&h=200&fit=crop', category: 'All', images: ['https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=400&h=400']),
-    // Fruits & Vegetables
-    ProductItem(name: 'Fresh Tomatoes', size: '500 g', price: '₹28', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1607305387299-a3d9611cd469?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Green Spinach', size: '250 g', price: '₹22', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Bananas', size: '6 pcs', price: '₹40', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Apple Royal Gala', size: '4 pcs', price: '₹120', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Carrots', size: '500 g', price: '₹35', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Onions', size: '1 kg', price: '₹45', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Mango Alphonso', size: '3 pcs', price: '₹99', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Potatoes', size: '1 kg', price: '₹38', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    ProductItem(name: 'Grapes Green', size: '500 g', price: '₹65', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=200&h=200&fit=crop', category: 'Fruits & Vegetables'),
-    // Snacks & Munchies
-    ProductItem(name: 'Lays Classic Salted', size: '73 g', price: '₹20', deliveryMins: '10', imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Haldiram Aloo Bhujia', size: '200 g', price: '₹55', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1585388013038-c88d3dc6ab5c?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Kurkure Masala', size: '80 g', price: '₹20', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Oreo Chocolate', size: '120 g', price: '₹30', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1571506165871-ee72a35bc9d4?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Good Day Butter', size: '216 g', price: '₹40', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Pringles Original', size: '107 g', price: '₹120', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Bingo Mad Angles', size: '90 g', price: '₹20', deliveryMins: '10', imageUrl: 'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Choco Pie', size: '180 g', price: '₹80', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1571506165871-ee72a35bc9d4?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    ProductItem(name: 'Nutella Hazelnut Spread', size: '200 g', price: '₹220', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1575325771870-2d8db4c1e8b7?w=200&h=200&fit=crop', category: 'Snacks & Munchies'),
-    // Cold Drinks & Juices
-    ProductItem(name: 'Coca-Cola', size: '750 ml', price: '₹45', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Real Orange Juice', size: '1 L', price: '₹110', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Sprite Lemon', size: '600 ml', price: '₹40', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Red Bull Energy', size: '250 ml', price: '₹125', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Tropicana Apple', size: '1 L', price: '₹115', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Pepsi', size: '600 ml', price: '₹38', deliveryMins: '10', imageUrl: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Mountain Dew', size: '600 ml', price: '₹40', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Appy Fizz', size: '600 ml', price: '₹35', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    ProductItem(name: 'Limca Lemon', size: '500 ml', price: '₹30', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=200&h=200&fit=crop', category: 'Cold Drinks & Juices'),
-    // Pet Care
-    ProductItem(name: 'Pedigree Adult Dog Food', size: '3 kg', price: '₹520', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1589924691995-400dc9eee119?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Whiskas Cat Food', size: '1.2 kg', price: '₹360', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Dog Chew Treats', size: '100 g', price: '₹180', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'IAMS Kitten Food', size: '800 g', price: '₹420', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1518791841217-8f162f1912da?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Dog Collar Leash', size: 'Medium', price: '₹299', deliveryMins: '22', imageUrl: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Pet Shampoo', size: '200 ml', price: '₹145', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Cat Litter Sand', size: '5 kg', price: '₹380', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Bird Feed Mix', size: '500 g', price: '₹95', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1444464666168-49d633b86797?w=200&h=200&fit=crop', category: 'Pet Care'),
-    ProductItem(name: 'Fish Tank Gravel', size: '1 kg', price: '₹120', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1583212292454-1fe6229603b7?w=200&h=200&fit=crop', category: 'Pet Care'),
-    // Baby Care
-    ProductItem(name: 'Pampers Diapers', size: 'M – 44 pcs', price: '₹799', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Johnson Baby Lotion', size: '200 ml', price: '₹148', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Cerelac Wheat', size: '300 g', price: '₹180', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1558468759-5b91ba55e9a4?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Himalaya Baby Wash', size: '400 ml', price: '₹160', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Baby Rattle Toy', size: 'Set of 3', price: '₹349', deliveryMins: '22', imageUrl: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'WaterWipes Baby Wipes', size: '60 pcs', price: '₹299', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Mee Mee Feeding Bottle', size: '250 ml', price: '₹240', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1558468759-5b91ba55e9a4?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Baby Powder Talc', size: '100 g', price: '₹89', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?w=200&h=200&fit=crop', category: 'Baby Care'),
-    ProductItem(name: 'Gripe Water', size: '130 ml', price: '₹95', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1558468759-5b91ba55e9a4?w=200&h=200&fit=crop', category: 'Baby Care'),
-    // Pharma & Wellness
-    ProductItem(name: 'Dettol Sanitizer', size: '200 ml', price: '₹115', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Band-Aid Strips', size: '20 pcs', price: '₹65', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Vicks VapoRub', size: '25 ml', price: '₹80', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Strepsils Lozenges', size: '24 pcs', price: '₹110', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Betadine Antiseptic', size: '30 ml', price: '₹68', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'ENO Fruit Salt', size: '100 g', price: '₹55', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Glucon-D', size: '200 g', price: '₹82', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Moov Pain Relief', size: '25 g', price: '₹95', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    ProductItem(name: 'Volini Spray', size: '55 g', price: '₹145', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop', category: 'Pharma & Wellness'),
-    // Dairy, Bread & Eggs
-    ProductItem(name: 'Amul Gold Full Cream Milk', size: '500 ml', price: '₹35', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Taaza Toned Milk', size: '1 L', price: '₹58', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Butter Salted', size: '100 g', price: '₹56', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Cheese Slices', size: '200 g', price: '₹118', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1618166912462-4428d2e83cac?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Britannia Whole Wheat Bread', size: '400 g', price: '₹42', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Farm Fresh Eggs', size: '6 pcs', price: '₹58', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Nestlé Munch Curd', size: '400 g', price: '₹40', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Shrikhand Mango', size: '200 g', price: '₹70', deliveryMins: '22', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Mother Dairy Curd', size: '500 g', price: '₹45', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Britannia Brown Bread', size: '500 g', price: '₹48', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Mozzarella Cheese', size: '200 g', price: '₹145', deliveryMins: '21', imageUrl: 'https://images.unsplash.com/photo-1618166912462-4428d2e83cac?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Farm Eggs Tray', size: '12 pcs', price: '₹108', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Lassi Rose', size: '200 ml', price: '₹28', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Milky Mist Paneer', size: '200 g', price: '₹82', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1618166912462-4428d2e83cac?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Nature’s Active Pav', size: '6 pcs', price: '₹30', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Cream 25% Fat', size: '250 ml', price: '₹82', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Britannia Multigrain Bread', size: '400 g', price: '₹52', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Ghee', size: '500 ml', price: '₹305', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Mother Dairy Buttermilk', size: '500 ml', price: '₹30', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Go Cheese Spread', size: '180 g', price: '₹110', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1618166912462-4428d2e83cac?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Nandini Milk Full Cream', size: '500 ml', price: '₹34', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Harvest Gold Bread', size: '400 g', price: '₹40', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Desi Eggs Brown', size: '6 pcs', price: '₹68', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Kool Flavoured Milk', size: '200 ml', price: '₹32', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Verka Paneer', size: '500 g', price: '₹195', deliveryMins: '21', imageUrl: 'https://images.unsplash.com/photo-1618166912462-4428d2e83cac?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Wibs Pav Buns', size: '12 pcs', price: '₹48', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Lite Slim Trim Milk', size: '500 ml', price: '₹38', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Nutralite Butter', size: '100 g', price: '₹60', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Mishti Doi', size: '100 g', price: '₹22', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Heritage Milk Curd Set', size: '400 g', price: '₹42', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Naan Bread', size: '5 pcs', price: '₹50', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Sour Cream', size: '200 g', price: '₹78', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Britannia Roti', size: '400 g', price: '₹44', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Prabhat Butter Unsalted', size: '100 g', price: '₹58', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Farm Fresh Organic Eggs', size: '12 pcs', price: '₹130', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Pro Protein Drink', size: '500 g', price: '₹248', deliveryMins: '22', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Brun Maska Bread', size: '4 pcs', price: '₹35', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'ITC Sunfeast Bread', size: '300 g', price: '₹38', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Butter Lite', size: '100 g', price: '₹50', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Mother Dairy Paneer', size: '200 g', price: '₹88', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1618166912462-4428d2e83cac?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Sourdough Bread', size: '350 g', price: '₹70', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Cool Café', size: '200 ml', price: '₹35', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Vijaya Butter Salted', size: '100 g', price: '₹54', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Masoom White Eggs', size: '30 pcs', price: '₹235', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Donut Bread Rolls', size: '4 pcs', price: '₹42', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Spreadable Butter', size: '200 g', price: '₹102', deliveryMins: '21', imageUrl: 'https://images.unsplash.com/photo-1632942070066-00f4f4e3b28c?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Nandini Curd', size: '500 g', price: '₹44', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Heritage Greek Yoghurt', size: '100 g', price: '₹45', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Milky Mist Thick Curd', size: '400 g', price: '₹40', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Amul Masti Spiced Buttermilk', size: '200 ml', price: '₹25', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    ProductItem(name: 'Britannia Milk Rusk', size: '290 g', price: '₹55', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop', category: 'Dairy, Bread & Eggs'),
-    // Shoes Category
-    ProductItem(name: 'REACT ELEMENT 87', size: 'LIGHT BONE', price: '₹10660', deliveryMins: '12', imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'REACT ELEMENT 87', size: 'ANTHRACITE', price: '₹10660', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'AIR FORCE 1 LOW', size: '07 PRM "JUST DO IT"', price: '₹10660', deliveryMins: '14', imageUrl: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'OFF-WHITE X AIR PRESTO', size: 'BLACK', price: '₹58220', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1551107696-a4bc03264639?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'AIR FORCE 1 LOW', size: 'WHITE', price: '₹7380', deliveryMins: '11', imageUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'SEAN WOTHERSPOON X NIKE', size: 'AIR MAX 1/97', price: '₹64780', deliveryMins: '18', imageUrl: 'https://images.unsplash.com/photo-1584486520270-19eca1efcce5?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'OFF-WHITE X VAPORMAX', size: 'PART 2 BLACK', price: '₹40180', deliveryMins: '16', imageUrl: 'https://images.unsplash.com/photo-1543163530-107310df666c?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'ADIDAS YEEZY 350', size: 'TURTLE DOVE', price: '₹36900', deliveryMins: '19', imageUrl: 'https://images.unsplash.com/photo-1587563871167-1ee9c731aefb?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'NIKE DUNK LOW', size: 'PANDA', price: '₹9020', deliveryMins: '13', imageUrl: 'https://images.unsplash.com/photo-1628150346041-ca47af830863?w=400&q=80', category: 'Shoes'),
-    ProductItem(name: 'AIR JORDAN 1 RETRO', size: 'UNIVERSITY BLUE', price: '₹14760', deliveryMins: '17', imageUrl: 'https://images.unsplash.com/photo-1584735175315-9d58238a06cf?w=400&q=80', category: 'Shoes'),
-    // NEW ARRIVALS (Integrated into main list to fix indexing errors)
-    ProductItem(name: 'Tan Solid Laptop Backpack', size: 'Large', price: '₹1490', deliveryMins: '25', imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&q=80', category: 'Backpacks'),
-    ProductItem(name: 'Brown Solid Biker Jacket', size: 'M', price: '₹1100', deliveryMins: '30', imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80', category: 'Jackets'),
-    ProductItem(name: 'Men Brown Solid Mid-Top Boots', size: '9 UK', price: '₹1150', deliveryMins: '45', imageUrl: 'https://images.unsplash.com/photo-1520639889456-748436ef7b90?w=500&q=80', category: 'Shoes'),
-    ProductItem(name: 'Petite Olive Green Solid Top', size: 'S', price: '₹490', deliveryMins: '20', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=500&q=80', category: 'Dresses'),
-    ProductItem(name: 'Brown Solid Laptop Bag', size: '15.6"', price: '₹990', deliveryMins: '15', imageUrl: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&q=80', category: 'Bags'),
-  ];
-
-  String get _categoryMessage {
-    final selectedCategory = categories[_selectedCategoryIndex].label;
-    return selectedCategory == 'All'
-        ? 'Explore all categories and discover your favorites.'
-        : 'Showing items for "$selectedCategory".';
-  }
-
-  late ScrollController _mainScrollController;
-  double _scrollOffset = 0;
 
   @override
   void initState() {
     super.initState();
-    // _getCurrentAddress(); // Disabled to show fixed address as requested
-    _startPlaceholderTimer();
     _categoryScrollController = ScrollController();
     _mainScrollController = ScrollController();
     _mainScrollController.addListener(() {
@@ -362,8 +196,129 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       }
     });
 
-    _bannerController = PageController(initialPage: 501); // Middle for loop
+    _bannerController = PageController(initialPage: 501);
     _startBannerTimer();
+    _startPlaceholderTimer();
+    
+    // Initialize with fallbacks and start listening to Firestore
+    allProducts = List.from(_fallbackProducts);
+    _listenToProducts();
+    _listenToCategories();
+    _listenToBanners();
+  }
+
+  void _listenToProducts() {
+    _productSubscription = FirebaseFirestore.instance
+        .collection('product')
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          allProducts = snapshot.docs.map((doc) {
+            final data = doc.data();
+            final List<dynamic> gallery = data['gallery'] ?? [];
+            final String mainImg = data['imageUrl'] ?? data['mainImage'] ?? '';
+            final List<String> images = gallery.isNotEmpty 
+                ? gallery.map((e) => e.toString()).toList() 
+                : (mainImg.isNotEmpty ? [mainImg] : []);
+            
+            final List<dynamic> sizes = data['selectedSizes'] ?? [];
+            final String sizeStr = sizes.isNotEmpty ? sizes.first.toString() : 'Regular';
+
+            return ProductItem(
+              name: data['title'] ?? data['name'] ?? 'Unnamed Product',
+              size: sizeStr,
+              price: '₹${data['price'] ?? data['mrp'] ?? '0'}',
+              deliveryMins: '15-20',
+              imageUrl: mainImg,
+              category: data['category'] ?? 'All',
+              images: images,
+            );
+          }).toList();
+          
+          if (allProducts.isEmpty) {
+            allProducts = List.from(_fallbackProducts);
+          }
+        });
+      }
+    });
+  }
+
+  void _listenToBanners() {
+    _bannerSubscription = FirebaseFirestore.instance
+        .collection('banners')
+        .where('isActive', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted && snapshot.docs.isNotEmpty) {
+        setState(() {
+          foodData = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              "title": data['title']?.toString() ?? '',
+              "subtitle": data['subtitle']?.toString() ?? '',
+              "offer": data['offer']?.toString() ?? '',
+              "img": data['img']?.toString() ?? '',
+            };
+          }).toList();
+        });
+      }
+    });
+  }
+
+  void _listenToCategories() {
+    _categorySubscription = FirebaseFirestore.instance
+        .collection('categories')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        debugPrint('Fetched ${snapshot.docs.length} dynamic categories from Firestore');
+        setState(() {
+          final dynamicCategories = snapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final colorStr = (data['color'] as String? ?? '').trim();
+            final label = (data['label'] as String? ?? 'Unknown').trim();
+            
+            Color categoryColor;
+            try {
+              if (colorStr.isEmpty) {
+                categoryColor = const Color(0xFFE8F5E9);
+              } else if (colorStr.startsWith('#')) {
+                // Handle #RRGGBB or #AARRGGBB
+                String hex = colorStr.replaceFirst('#', '');
+                if (hex.length == 6) hex = 'FF' + hex;
+                categoryColor = Color(int.parse('0x' + hex));
+              } else if (colorStr.startsWith('0x') || colorStr.startsWith('0X')) {
+                categoryColor = Color(int.parse(colorStr));
+              } else {
+                // Assume it's a raw hex string RRGGBB
+                String hex = colorStr;
+                if (hex.length == 6) hex = 'FF' + hex;
+                categoryColor = Color(int.parse('0x' + hex));
+              }
+            } catch (e) {
+              debugPrint('Error parsing color $colorStr for category $label: $e');
+              categoryColor = const Color(0xFFE8F5E9);
+            }
+
+            return CategoryItem(
+              label: label.isEmpty ? 'Unknown' : label,
+              imageUrl: data['imageUrl'] ?? '',
+              color: categoryColor,
+            );
+          }).toList();
+
+          // Show only dynamic categories
+          categories = dynamicCategories;
+          
+          // Deduplicate based on label (case-insensitive)
+          final seen = <String>{};
+          categories = categories.where((c) => seen.add(c.label.toLowerCase().trim())).toList();
+          debugPrint('Total categories after merge: ${categories.length}');
+        });
+      }
+    });
   }
 
   void _startBannerTimer() {
@@ -378,7 +333,6 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     });
   }
 
-
   void _startPlaceholderTimer() {
     _placeholderTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (mounted) {
@@ -391,6 +345,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    _productSubscription?.cancel();
+    _categorySubscription?.cancel();
     _mainScrollController.dispose();
     _searchController.dispose();
     _placeholderTimer?.cancel();
@@ -399,6 +355,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     _categoryScrollController.dispose();
     super.dispose();
   }
+
+
 
   Future<void> _getCurrentAddress() async {
     try {
@@ -442,7 +400,13 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final selectedCategory = categories[_selectedCategoryIndex].label;
+    String selectedCategory = 'All';
+    if (categories.isNotEmpty) {
+      if (_selectedCategoryIndex >= categories.length) {
+        _selectedCategoryIndex = 0;
+      }
+      selectedCategory = categories[_selectedCategoryIndex].label;
+    }
 
     return Scaffold(
       appBar: null,
@@ -506,35 +470,25 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                           category: categories[index],
                           isDark: isDark,
                           onTap: () async {
-                            if (categories[index].label == 'Shoes') {
-                              final updatedCart = await Navigator.push<Map<int, int>>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ShoesPage(
-                                    isDarkMode: isDark,
-                                    allProducts: allProducts,
-                                    initialCart: Map.from(_productQty),
-                                  ),
-                                ),
-                              );
-                              if (updatedCart != null) {
-                                setState(() {
-                                  _productQty.clear();
-                                  _productQty.addAll(updatedCart);
-                                });
-                              }
-                              return;
-                            }
                             setState(() => _selectedCategoryIndex = index);
-                            Navigator.push(
+                            final updatedCart = await Navigator.push<Map<int, int>>(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => ProductScreen(
-                                  categoryName: categories[index].label,
+                                builder: (context) => AllProductsPage(
+                                  title: categories[index].label,
+                                  categoryFilter: categories[index].label,
+                                  allProducts: allProducts,
+                                  initialCart: Map.from(_productQty),
                                   isDarkMode: isDark,
                                 ),
                               ),
                             );
+                            if (updatedCart != null) {
+                              setState(() {
+                                _productQty.clear();
+                                _productQty.addAll(updatedCart);
+                              });
+                            }
                           },
                         );
                       },
@@ -674,8 +628,11 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => ProductScreen(
-                                    categoryName: "Fruits & Vegetables",
+                                  builder: (context) => AllProductsPage(
+                                    title: "Fruits & Vegetables",
+                                    allProducts: allProducts,
+                                    categoryFilter: "Fruits & Vegetables",
+                                    initialCart: Map.from(_productQty),
                                     isDarkMode: isDark,
                                   ),
                                 ),
@@ -693,8 +650,11 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => ProductScreen(
-                                    categoryName: "Snacks & Munchies",
+                                  builder: (context) => AllProductsPage(
+                                    title: "Snacks & Munchies",
+                                    allProducts: allProducts,
+                                    categoryFilter: "Snacks & Munchies",
+                                    initialCart: Map.from(_productQty),
                                     isDarkMode: isDark,
                                   ),
                                 ),
@@ -746,78 +706,53 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                     ),
                   ),
                   const SizedBox(height: 32),
+                  // ── DYNAMIC CATEGORY PRODUCT ROWS ──────────────────
+                  ..._buildCategoryProductSections(),
+                  const SizedBox(height: 32),
+                  _buildSectionHeader('Support Daily Essentials'),
+                  const SizedBox(height: 16),
                   Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF2D7A3E),
-                      const Color(0xFF1F5A2F),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Stock up on daily essentials',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Get farm-fresh goodness & a range of exotic fruits, vegetables, eggs & more',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Navigating to shop...'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFF2D7A3E),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 28,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 6,
-                            ),
-                            child: const Text(
-                              'Shop Now',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF2D7A3E), Color(0xFF1F5A2F)],
                       ),
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Stock up on daily essentials',
+                                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Get farm-fresh goodness & a range of exotic fruits, vegetables, eggs & more',
+                                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w400, height: 1.5),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: () {},
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: const Color(0xFF2D7A3E),
+                                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 0,
+                                ),
+                                child: const Text('Shop Now', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                              ),
+                            ],
+                          ),
+                        ),
                     const SizedBox(width: 20),
                     Expanded(
                       flex: 1,
@@ -1020,7 +955,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               const SizedBox(height: 12),
               // ── 9 Product cards – horizontal scroll ───────────
               Builder(builder: (context) {
-                final catLabel = categories[_selectedCategoryIndex].label;
+                final catLabel = categories.isNotEmpty ? categories[_selectedCategoryIndex].label : 'All';
                 final filtered = allProducts
                     .where((p) => catLabel == 'All' || p.category == catLabel)
                     .take(9)
@@ -1172,11 +1107,16 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               
               _buildPromotionBanners(),
               
+              const SizedBox(height: 20),
+
+              // ── DYNAMIC CATEGORY SECTIONS ───────────────────────
+              ..._buildCategoryProductSections(),
+              
               const SizedBox(height: 60),
 
               _FeaturedProductsSection(
                 allProducts: allProducts,
-                newArrivalProducts: allProducts.sublist(allProducts.length - 5),
+                newArrivalProducts: allProducts.length >= 5 ? allProducts.sublist(allProducts.length - 5) : allProducts,
                 onAddToCart: (idx) => setState(() => _productQty[idx] = (_productQty[idx] ?? 0) + 1),
                 onShowDetail: (product, idx) => _showProductDetail(product, idx),
                 productQty: _productQty,
@@ -1187,7 +1127,6 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
               // ── FOOTER SECTION ──────────────────────────────────
               _buildFooter(),
-              const SizedBox(height: 20),
             ]),
           ),
         ),
@@ -1404,13 +1343,15 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   }
 
   // ── Product Detail Card ──────────────────────────────────────
-  void _showProductDetail(ProductItem product, int index) {
+  void _showProductDetail(ProductItem product, [int? index]) {
+    final int globalIdx = index ?? allProducts.indexOf(product);
+    
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final bool isFavorite = _favoriteProducts.contains(index);
-          final int qty = _productQty[index] ?? 0;
+          final bool isFavorite = _favoriteProducts.contains(globalIdx);
+          final int qty = _productQty[globalIdx] ?? 0;
           final PageController pageController = PageController();
           
           return Dialog(
@@ -1467,10 +1408,10 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                           child: GestureDetector(
                             onTap: () {
                               setState(() {
-                                if (_favoriteProducts.contains(index)) {
-                                  _favoriteProducts.remove(index);
+                                if (_favoriteProducts.contains(globalIdx)) {
+                                  _favoriteProducts.remove(globalIdx);
                                 } else {
-                                  _favoriteProducts.add(index);
+                                  _favoriteProducts.add(globalIdx);
                                 }
                               });
                               setDialogState(() {}); // Update local dialog state
@@ -1573,7 +1514,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                 qty == 0
                                   ? ElevatedButton(
                                       onPressed: () {
-                                        setState(() => _productQty[index] = 1);
+                                        setState(() => _productQty[globalIdx] = 1);
                                         setDialogState(() {});
                                       },
                                       style: ElevatedButton.styleFrom(
@@ -1597,10 +1538,10 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                             icon: Icons.remove,
                                             onTap: () {
                                               setState(() {
-                                                if ((_productQty[index] ?? 1) <= 1) {
-                                                  _productQty.remove(index);
+                                                if ((_productQty[globalIdx] ?? 1) <= 1) {
+                                                  _productQty.remove(globalIdx);
                                                 } else {
-                                                  _productQty[index] = (_productQty[index] ?? 1) - 1;
+                                                  _productQty[globalIdx] = (_productQty[globalIdx] ?? 1) - 1;
                                                 }
                                               });
                                               setDialogState(() {});
@@ -1616,7 +1557,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                           _qtyButton(
                                             icon: Icons.add,
                                             onTap: () {
-                                              setState(() => _productQty[index] = (qty) + 1);
+                                              setState(() => _productQty[globalIdx] = (qty) + 1);
                                               setDialogState(() {});
                                             },
                                           ),
@@ -3239,27 +3180,36 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       Navigator.push(context, MaterialPageRoute(builder: (context) => AboutPage(isDarkMode: isDark)));
       return;
     }
-    if (title.toUpperCase() == 'BAGS') {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => BagsPage(isDarkMode: isDark)));
-      return;
-    }
-    if (title.toUpperCase() == 'SHOES') {
+    if (t == 'BAGS' || title.toUpperCase() == 'BAGS') {
       final updatedCart = await Navigator.push<Map<int, int>>(
         context,
         MaterialPageRoute(
-          builder: (context) => ShoesPage(
-            isDarkMode: isDark,
+          builder: (context) => AllProductsPage(
+            title: 'BAGS COLLECTION',
+            categoryFilter: 'Bags',
             allProducts: allProducts,
             initialCart: Map.from(_productQty),
+            isDarkMode: isDark,
           ),
         ),
       );
-      if (updatedCart != null) {
-        setState(() {
-          _productQty.clear();
-          _productQty.addAll(updatedCart);
-        });
-      }
+      if (updatedCart != null) setState(() { _productQty.clear(); _productQty.addAll(updatedCart); });
+      return;
+    }
+    if (t == 'SHOES' || title.toUpperCase() == 'SHOES') {
+      final updatedCart = await Navigator.push<Map<int, int>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AllProductsPage(
+            title: 'PREMIUM FOOTWEAR',
+            categoryFilter: 'Shoes',
+            allProducts: allProducts,
+            initialCart: Map.from(_productQty),
+            isDarkMode: isDark,
+          ),
+        ),
+      );
+      if (updatedCart != null) setState(() { _productQty.clear(); _productQty.addAll(updatedCart); });
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
@@ -3276,6 +3226,91 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       padding: const EdgeInsets.only(right: 12),
       child: Icon(icon, color: Colors.white, size: 22),
     );
+  }
+
+  // ── DYNAMIC CATEGORY SECTIONS ──────────────────────────────
+
+  List<Widget> _buildCategoryProductSections() {
+    // Group products by category
+    Map<String, List<ProductItem>> grouped = {};
+    for (var p in allProducts) {
+      if (p.category == 'All') continue;
+      grouped.putIfAbsent(p.category, () => []).add(p);
+    }
+
+    // Sort categories alphabetically
+    var sortedCategories = grouped.keys.toList()..sort();
+
+    return sortedCategories.map((catName) {
+      final products = grouped[catName]!;
+      if (products.isEmpty) return const SizedBox.shrink();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  catName,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final updatedCart = await Navigator.push<Map<int, int>>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AllProductsPage(
+                          title: catName,
+                          categoryFilter: catName,
+                          allProducts: allProducts,
+                          initialCart: Map.from(_productQty),
+                          isDarkMode: isDark,
+                        ),
+                      ),
+                    );
+                    if (updatedCart != null) {
+                      setState(() {
+                        _productQty.clear();
+                        _productQty.addAll(updatedCart);
+                      });
+                    }
+                  },
+                  child: const Text('See all >',
+                      style: TextStyle(
+                          color: Color(0xFF27C93F), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 280,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                final gIdx = allProducts.indexOf(product);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: _AddressPageProductCard(
+                    product: product,
+                    qty: _productQty[gIdx] ?? 0,
+                    onAddToCart: () => setState(() =>
+                        _productQty[gIdx] = (_productQty[gIdx] ?? 0) + 1),
+                    onTap: () => _showProductDetail(product, gIdx),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      );
+    }).toList();
   }
 }
 
@@ -3379,130 +3414,7 @@ class _CategoryHoverCardState extends State<_CategoryHoverCard> {
 }
 
 
-class ProductScreen extends StatelessWidget {
-  final String categoryName;
-  final bool isDarkMode;
-
-  const ProductScreen({super.key, required this.categoryName, required this.isDarkMode});
-
-  @override
-  Widget build(BuildContext context) {
-    List<Product> products = categoryProducts[categoryName] ?? [];
-
-    return Scaffold(
-      backgroundColor: isDarkMode ? const Color(0xFF090A12) : const Color(0xFFF4F4F8),
-      appBar: AppBar(
-        title: Text(
-          categoryName,
-          style: TextStyle(
-            color: isDarkMode ? Colors.white : Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: isDarkMode ? const Color(0xFF0D0E17) : Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: isDarkMode ? Colors.white : Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: products.isEmpty 
-        ? Center(
-            child: Text(
-              'No products found in this category',
-              style: TextStyle(color: isDarkMode ? Colors.white54 : Colors.black45),
-            ),
-          )
-        : GridView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: products.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-            ),
-            itemBuilder: (context, index) {
-              final product = products[index];
-
-              return Container(
-                decoration: BoxDecoration(
-                  color: isDarkMode ? const Color(0xFF1A1B28) : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDarkMode ? 0.3 : 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: product.image.startsWith('http')
-                            ? Image.network(product.image, fit: BoxFit.cover, width: double.infinity)
-                            : Image.asset(product.image, fit: BoxFit.cover, width: double.infinity),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        product.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "₹${product.price}",
-                        style: const TextStyle(
-                          color: Color(0xFF27C93F),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("${product.name} added to cart"),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF27C93F),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: const Text("Add", style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-    );
-  }
-}
+// ProductScreen replaced by unified AllProductsPage for better dynamic support.
 
 // ═══════════════════════════════════════════════════════════════════════
 // ALL PRODUCTS PAGE — opens when user taps "See all" card
@@ -3614,6 +3526,253 @@ class _AllProductsPageState extends State<AllProductsPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showProductDetail(ProductItem product) {
+    final int globalIdx = widget.allProducts.indexOf(product);
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final bool isFavorite = _favoriteProducts.contains(globalIdx);
+          final int qty = _qty[globalIdx] ?? 0;
+          final PageController pageController = PageController();
+          
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              width: 350,
+              height: 580,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1F2E) : Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        SizedBox(
+                          height: 300,
+                          child: PageView.builder(
+                            controller: pageController,
+                            itemCount: product.images.length,
+                            itemBuilder: (context, i) => Image.network(
+                              product.images[i],
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 16,
+                          left: 16,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: CircleAvatar(
+                              backgroundColor: Colors.black.withOpacity(0.4),
+                              child: const Icon(Icons.close, color: Colors.white, size: 20),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (_favoriteProducts.contains(globalIdx)) {
+                                  _favoriteProducts.remove(globalIdx);
+                                } else {
+                                  _favoriteProducts.add(globalIdx);
+                                }
+                              });
+                              setDialogState(() {});
+                            },
+                            child: CircleAvatar(
+                              backgroundColor: Colors.white,
+                              child: Icon(
+                                isFavorite ? Icons.favorite : Icons.favorite_border,
+                                color: isFavorite ? Colors.red : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (product.images.length > 1)
+                          Positioned(
+                            bottom: 16,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.4),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '${product.images.length} Images',
+                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    product.name,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w900,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              product.size,
+                              style: const TextStyle(color: Colors.grey, fontSize: 14),
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Premium quality item sourced directly for your convenience. Hand-picked and guaranteed fresh upon delivery.',
+                              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
+                            ),
+                            const Spacer(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('MRP', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                                    Text(
+                                      product.price,
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w900,
+                                        color: isDark ? Colors.white : Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                qty == 0
+                                  ? ElevatedButton(
+                                      onPressed: () {
+                                        setState(() => _qty[globalIdx] = 1);
+                                        setDialogState(() {});
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF27C93F),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        elevation: 0,
+                                      ),
+                                      child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.w900)),
+                                    )
+                                  : Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF27C93F),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _detailQtyButton(
+                                            icon: Icons.remove,
+                                            onTap: () {
+                                              setState(() {
+                                                if ((_qty[globalIdx] ?? 1) <= 1) {
+                                                  _qty.remove(globalIdx);
+                                                } else {
+                                                  _qty[globalIdx] = (_qty[globalIdx] ?? 1) - 1;
+                                                }
+                                              });
+                                              setDialogState(() {});
+                                            },
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                                            child: Text(
+                                              '$qty',
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                                            ),
+                                          ),
+                                          _detailQtyButton(
+                                            icon: Icons.add,
+                                            onTap: () {
+                                              setState(() => _qty[globalIdx] = (qty) + 1);
+                                              setDialogState(() {});
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _detailQtyButton({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _btn({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF27C93F),
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Icon(icon, size: 14, color: Colors.white),
       ),
     );
   }
@@ -3768,265 +3927,6 @@ class _AllProductsPageState extends State<AllProductsPage> {
     );
   }
 
-  // ── Product Detail Card (Replicated for Category Page) ───────
-  void _showProductDetail(ProductItem product) {
-    final int globalIdx = widget.allProducts.indexOf(product);
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final bool isFavorite = _favoriteProducts.contains(globalIdx);
-          final int qty = _qty[globalIdx] ?? 0;
-          final PageController pageController = PageController();
-          
-          return Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              width: 350,
-              height: 580,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1F2E) : Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        SizedBox(
-                          height: 300,
-                          child: PageView.builder(
-                            controller: pageController,
-                            itemCount: product.images.length,
-                            itemBuilder: (context, i) => Image.network(
-                              product.images[i],
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 16,
-                          left: 16,
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black.withOpacity(0.4),
-                              child: const Icon(Icons.close, color: Colors.white, size: 20),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 16,
-                          right: 16,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                if (_favoriteProducts.contains(globalIdx)) {
-                                  _favoriteProducts.remove(globalIdx);
-                                } else {
-                                  _favoriteProducts.add(globalIdx);
-                                }
-                              });
-                              setDialogState(() {});
-                            },
-                            child: CircleAvatar(
-                              backgroundColor: Colors.white,
-                              child: Icon(
-                                isFavorite ? Icons.favorite : Icons.favorite_border,
-                                color: isFavorite ? Colors.red : Colors.grey,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (product.images.length > 1)
-                          Positioned(
-                            bottom: 16,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.4),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  '${product.images.length} Images',
-                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    product.name,
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w900,
-                                      color: isDark ? Colors.white : Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Text(
-                                    'Fresh',
-                                    style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              product.size,
-                              style: const TextStyle(color: Colors.grey, fontSize: 14),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Premium quality item sourced directly for your convenience. Hand-picked and guaranteed fresh upon delivery.',
-                              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
-                            ),
-                            const Spacer(),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('MRP', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                                    Text(
-                                      product.price,
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w900,
-                                        color: isDark ? Colors.white : Colors.black87,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                qty == 0
-                                  ? ElevatedButton(
-                                      onPressed: () {
-                                        setState(() => _qty[globalIdx] = 1);
-                                        setDialogState(() {});
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF27C93F),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                        elevation: 0,
-                                      ),
-                                      child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.w900)),
-                                    )
-                                  : Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF27C93F),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          _detailQtyButton(
-                                            icon: Icons.remove,
-                                            onTap: () {
-                                              setState(() {
-                                                if ((_qty[globalIdx] ?? 1) <= 1) {
-                                                  _qty.remove(globalIdx);
-                                                } else {
-                                                  _qty[globalIdx] = (_qty[globalIdx] ?? 1) - 1;
-                                                }
-                                              });
-                                              setDialogState(() {});
-                                            },
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                                            child: Text(
-                                              '$qty',
-                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                                            ),
-                                          ),
-                                          _detailQtyButton(
-                                            icon: Icons.add,
-                                            onTap: () {
-                                              setState(() => _qty[globalIdx] = (qty) + 1);
-                                              setDialogState(() {});
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _detailQtyButton({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 18, color: Colors.white),
-      ),
-    );
-  }
-
-  Widget _btn({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: const Color(0xFF27C93F),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Icon(icon, size: 15, color: Colors.white),
-      ),
-    );
-  }
 }
 
 class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {

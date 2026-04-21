@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import '../services/order_service.dart';
 
 class PaymentPage extends StatefulWidget {
   final bool isDarkMode;
@@ -305,24 +306,57 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
     );
   }
 
-  void _navigateToThankYou() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ThankYouPage(
-          isDarkMode: isDark,
-          onThemeToggle: widget.onThemeToggle,
-          orderId: _orderId,
-          totalAmount: widget.totalAmount,
-          cartItems: widget.cartItems,
-          userName: widget.userName,
-          userId: widget.userId,
-          paymentMode: _selectedMode ?? 'Online',
-          transactionId: _transactionId,
-          status: _selectedMode == 'Cash on Delivery' ? 'Cash' : 'Online',
-        ),
-      ),
+  Future<void> _navigateToThankYou() async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      final status = _selectedMode == 'Cash on Delivery' ? 'Cash' : 'Online';
+      
+      await OrderService.createOrder(
+        orderId: _orderId,
+        userId: widget.userId,
+        userName: widget.userName,
+        totalAmount: widget.totalAmount,
+        paymentMode: _selectedMode ?? 'Online',
+        status: status,
+        address: widget.selectedAddress,
+        addressType: widget.selectedAddressType,
+        items: widget.cartItems,
+        transactionId: _transactionId,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // Pop loading dialog
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ThankYouPage(
+            isDarkMode: isDark,
+            onThemeToggle: widget.onThemeToggle,
+            orderId: _orderId,
+            totalAmount: widget.totalAmount,
+            cartItems: widget.cartItems,
+            userName: widget.userName,
+            userId: widget.userId,
+            paymentMode: _selectedMode ?? 'Online',
+            transactionId: _transactionId,
+            status: status,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Pop loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to place order: $e')),
+      );
+    }
   }
 
   Widget _divider() {

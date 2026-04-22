@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'src/views/login_page.dart';
 import 'src/views/address_page.dart';
 
@@ -17,36 +18,15 @@ void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
     
-    // Load .env for local development
+    // Load .env for local development (optional, can be used for other keys)
     try {
       await dotenv.load(fileName: ".env");
     } catch (_) {}
 
-    // Get values from flags or .env fallback
-    const fKey = String.fromEnvironment('FIREBASE_API_KEY');
-    const fAuth = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
-    const fProj = String.fromEnvironment('FIREBASE_PROJECT_ID');
-    const fStor = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
-    const fMess = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
-    const fApp = String.fromEnvironment('FIREBASE_APP_ID');
-    const fMeas = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
-
-    final apiKey = fKey.isNotEmpty ? fKey : dotenv.get('FIREBASE_API_KEY', fallback: "");
+    debugPrint('Firebase App Initializing with DefaultFirebaseOptions...');
     
-    debugPrint('Firebase App Initializing...');
-    debugPrint('API Key Status: ${apiKey.isNotEmpty ? "Available (${apiKey.substring(0, 5)}...)" : "MISSING"}');
-    debugPrint('Project ID: ${fProj.isNotEmpty ? fProj : dotenv.get('FIREBASE_PROJECT_ID', fallback: "MISSING")}');
-
     await Firebase.initializeApp(
-      options: FirebaseOptions(
-        apiKey: apiKey,
-        authDomain: fAuth.isNotEmpty ? fAuth : dotenv.get('FIREBASE_AUTH_DOMAIN', fallback: ""),
-        projectId: fProj.isNotEmpty ? fProj : dotenv.get('FIREBASE_PROJECT_ID', fallback: ""),
-        storageBucket: fStor.isNotEmpty ? fStor : dotenv.get('FIREBASE_STORAGE_BUCKET', fallback: ""),
-        messagingSenderId: fMess.isNotEmpty ? fMess : dotenv.get('FIREBASE_MESSAGING_SENDER_ID', fallback: ""),
-        appId: fApp.isNotEmpty ? fApp : dotenv.get('FIREBASE_APP_ID', fallback: ""),
-        measurementId: fMeas.isNotEmpty ? fMeas : dotenv.get('FIREBASE_MEASUREMENT_ID', fallback: ""),
-      ),
+      options: DefaultFirebaseOptions.currentPlatform,
     );
 
     runApp(const BlinkiteApp());

@@ -5,15 +5,6 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
-///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -28,11 +19,6 @@ class DefaultFirebaseOptions {
         return macos;
       case TargetPlatform.windows:
         return windows;
-      case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -52,7 +38,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBoq7eFVsY8zQ7wbKtvQ1fW7Ka-Qr6b26c',
-    appId: '1:195949054113:android:9d45e43c5b8e5c58ab08e0', // Placeholder if not provided
+    appId: '1:195949054113:android:9d45e43c5b8e5c58ab08e0',
     messagingSenderId: '195949054113',
     projectId: 'demoproject-87d37',
     storageBucket: 'demoproject-87d37.firebasestorage.app',
@@ -60,7 +46,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBoq7eFVsY8zQ7wbKtvQ1fW7Ka-Qr6b26c',
-    appId: '1:195949054113:ios:6c638dc9f8615f58ab08e0', // Placeholder
+    appId: '1:195949054113:ios:6c638dc9f8615f58ab08e0',
     messagingSenderId: '195949054113',
     projectId: 'demoproject-87d37',
     storageBucket: 'demoproject-87d37.firebasestorage.app',

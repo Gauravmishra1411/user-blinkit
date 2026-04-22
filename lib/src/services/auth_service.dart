@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -66,11 +66,17 @@ class AuthService {
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // In standard google_sign_in, use signIn()
+      debugPrint('Starting Google Sign-In flow...');
+      debugPrint('Client ID: ${_googleSignIn.clientId}');
+      
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+      if (googleUser == null) {
+        debugPrint('Google Sign-In: User closed the prompt.');
+        return null;
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      debugPrint('Google Auth received. idToken present: ${googleAuth.idToken != null}');
       
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,

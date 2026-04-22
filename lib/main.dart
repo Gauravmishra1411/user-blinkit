@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'src/views/login_page.dart';
 import 'src/views/address_page.dart';
+import 'src/views/onboarding_page.dart';
 
 void main() async {
   // Catch all Flutter errors
@@ -57,6 +58,28 @@ class BlinkiteApp extends StatefulWidget {
 
 class _BlinkiteAppState extends State<BlinkiteApp> {
   bool _isDarkMode = false;
+  bool _showOnboarding = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboardingStatus();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _showOnboarding = prefs.getBool('onboarding_seen') != true;
+    });
+  }
+
+  void _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_seen', true);
+    setState(() {
+      _showOnboarding = false;
+    });
+  }
 
   void _toggleTheme() {
     setState(() {
@@ -97,6 +120,13 @@ class _BlinkiteAppState extends State<BlinkiteApp> {
           
           if (snapshot.hasData) {
             return AddressPage(onThemeToggle: _toggleTheme, isDarkMode: _isDarkMode);
+          }
+
+          if (_showOnboarding) {
+            return OnboardingPage(
+              onFinish: _completeOnboarding,
+              isDarkMode: _isDarkMode,
+            );
           }
 
           return LoginPage(onThemeToggle: _toggleTheme, isDarkMode: _isDarkMode);

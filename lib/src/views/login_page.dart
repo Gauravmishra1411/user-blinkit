@@ -2,7 +2,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
-import 'address_page.dart';
 import '../widgets/kb_logo.dart';
 
 class LoginPage extends StatefulWidget {
@@ -19,11 +18,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
-  late final AnimationController _glowController;
-  late final AnimationController _pulseController;
-  late final Animation<double> _pulseAnimation;
-
+class _LoginPageState extends State<LoginPage> {
   final AuthService _authService = AuthService();
 
   final TextEditingController _usernameController = TextEditingController();
@@ -44,31 +39,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   static const Color _primaryBlue = Color(0xFF39D2FF);
   static const Color _primaryMagenta = Color(0xFFE57CFF);
-  static const Color _backgroundStart = Color(0xFF090A12);
-  static const Color _backgroundEnd = Color(0xFF110F23);
-
-  @override
-  void initState() {
-    super.initState();
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat();
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween(begin: 0.96, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-  }
+  static const Color _backgroundStart = Color(0xFF0D0E17);
+  static const Color _backgroundEnd = Color(0xFF1A1C2C);
 
   @override
   void dispose() {
-    _glowController.dispose();
-    _pulseController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
@@ -82,25 +57,22 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Color _fade(Color color, double opacity) {
-    return Color.fromRGBO(color.red, color.green, color.blue, opacity);
-  }
-
   InputDecoration _buildInputDecoration(String label, Color accent, {Widget? suffixIcon, IconData? prefixIcon}) {
+    final isDark = widget.isDarkMode;
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: _fade(accent, 0.92)),
-      prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: _fade(accent, 0.7), size: 20) : null,
+      labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+      prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: accent, size: 20) : null,
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(30),
-        borderSide: BorderSide(width: 2, color: _fade(accent, 0.32)),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(width: 1, color: isDark ? Colors.white10 : Colors.black12),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(30),
-        borderSide: BorderSide(width: 2.5, color: accent),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(width: 2, color: accent),
       ),
       filled: true,
-      fillColor: _fade(Colors.white, 0.03),
+      fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       suffixIcon: suffixIcon,
     );
@@ -112,72 +84,35 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final formWidth = min(size.width * 0.9, 420.0);
 
     return Scaffold(
+      backgroundColor: widget.isDarkMode ? _backgroundStart : Colors.white,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [_backgroundStart, _backgroundEnd],
+          if (widget.isDarkMode)
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [_backgroundStart, _backgroundEnd],
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _glowController,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: _BackgroundGlowPainter(_glowController.value),
-                );
-              },
-            ),
-          ),
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
-              child: AnimatedBuilder(
-                animation: Listenable.merge([_glowController, _pulseController]),
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _pulseAnimation.value,
-                    child: Container(
-                      width: formWidth,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(32),
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          // Background ring - Fixed size and IgnorePointer to prevent layout issues
-                          IgnorePointer(
-                            child: SizedBox(
-                              width: formWidth,
-                              height: formWidth,
-                              child: CustomPaint(
-                                painter: _RingPainter(
-                                  rotation: _glowController.value,
-                                  innerScale: _pulseAnimation.value,
-                                ),
-                              ),
-                            ),
-                          ),
-                          _buildLoginCard(),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
+              child: SizedBox(
+                width: formWidth,
+                child: Column(
+                  children: [
+                    KBLogo(size: 80, isAnimated: false),
+                    const SizedBox(height: 40),
+                    _buildLoginCard(),
+                  ],
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: 50,
-            left: 20,
-            child: KBLogo(size: 60),
           ),
           if (_isLoading)
             Container(
@@ -192,47 +127,51 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   Widget _buildLoginCard() {
+    final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: _fade(Colors.white, 0.05),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: _fade(Colors.white, 0.15), width: 1.2),
+        color: widget.isDarkMode ? Colors.white.withOpacity(0.03) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: widget.isDarkMode ? Colors.white10 : Colors.black12,
+          width: 1,
+        ),
         boxShadow: [
-          BoxShadow(
-            color: _fade(Colors.black, 0.45),
-            blurRadius: 28,
-            offset: const Offset(0, 18),
-          ),
+          if (!widget.isDarkMode)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            _isLoginMode ? 'Login' : 'Sign Up',
+            _isLoginMode ? 'Welcome Back' : 'Create Account',
             style: TextStyle(
-              color: widget.isDarkMode ? Colors.white : Colors.black,
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
+              color: textColor,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           if (!_isLoginMode) ...[
             TextField(
               controller: _nameController,
               focusNode: _nameFocus,
-              cursorColor: _primaryBlue,
-              style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+              style: TextStyle(color: textColor),
               decoration: _buildInputDecoration('Full Name', _primaryBlue, prefixIcon: Icons.person_outline),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _emailController,
               focusNode: _emailFocus,
-              cursorColor: _primaryMagenta,
-              style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+              style: TextStyle(color: textColor),
               decoration: _buildInputDecoration('Email Address', _primaryMagenta, prefixIcon: Icons.email_outlined),
             ),
             const SizedBox(height: 16),
@@ -240,24 +179,23 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               controller: _phoneController,
               focusNode: _phoneFocus,
               keyboardType: TextInputType.phone,
-              cursorColor: _primaryBlue,
-              style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+              style: TextStyle(color: textColor),
               decoration: _buildInputDecoration('Phone Number', _primaryBlue, prefixIcon: Icons.phone_outlined),
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
-                color: _fade(Colors.white, 0.03),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: _fade(_primaryMagenta, 0.32), width: 2),
+                color: widget.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: widget.isDarkMode ? Colors.white10 : Colors.black12),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedGender,
                   isExpanded: true,
-                  dropdownColor: _backgroundEnd,
-                  style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                  dropdownColor: widget.isDarkMode ? _backgroundEnd : Colors.white,
+                  style: TextStyle(color: textColor),
                   items: ['Male', 'Female', 'Other'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
@@ -278,20 +216,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             TextField(
               controller: _usernameController,
               focusNode: _usernameFocus,
-              cursorColor: _primaryBlue,
-              style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+              style: TextStyle(color: textColor),
               decoration: _buildInputDecoration('Email', _primaryBlue, prefixIcon: Icons.email_outlined),
             ),
-          ] else ...[
-            // For signup, use password field directly
           ],
           const SizedBox(height: 16),
           TextField(
             controller: _passwordController,
             focusNode: _passwordFocus,
             obscureText: _obscurePassword,
-            cursorColor: _primaryMagenta,
-            style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+            style: TextStyle(color: textColor),
             decoration: _buildInputDecoration(
               'Password', 
               _primaryMagenta,
@@ -299,7 +233,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  color: _fade(_primaryMagenta, 0.7),
+                  color: widget.isDarkMode ? Colors.white54 : Colors.black45,
                 ),
                 onPressed: () {
                   setState(() {
@@ -309,27 +243,26 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
+            height: 56,
             child: ElevatedButton(
               onPressed: _isLoginMode ? _handleLogin : _handleSignup,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F8EFE),
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: _primaryBlue,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                elevation: 12,
-                shadowColor: const Color(0xFF4F8EFE).withOpacity(0.35),
+                elevation: 0,
               ),
               child: Text(
                 _isLoginMode ? 'Login' : 'Sign Up',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           TextButton(
             onPressed: _toggleMode,
             child: Text(
@@ -340,41 +273,41 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: Divider(color: widget.isDarkMode ? Colors.white24 : Colors.black12)),
+              Expanded(child: Divider(color: widget.isDarkMode ? Colors.white10 : Colors.black12)),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text('OR', style: TextStyle(color: widget.isDarkMode ? Colors.white38 : Colors.black38, fontSize: 12)),
               ),
-              Expanded(child: Divider(color: widget.isDarkMode ? Colors.white24 : Colors.black12)),
+              Expanded(child: Divider(color: widget.isDarkMode ? Colors.white10 : Colors.black12)),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
+            height: 56,
             child: OutlinedButton.icon(
               onPressed: _handleGoogleSignIn,
               icon: Icon(
-                Icons.g_mobiledata, // Using a built-in icon instead of network image
-                color: widget.isDarkMode ? Colors.white : Colors.black,
+                Icons.g_mobiledata,
+                color: textColor,
                 size: 28,
               ),
               label: Text(
                 'Continue with Google',
                 style: TextStyle(
-                  color: widget.isDarkMode ? Colors.white : Colors.black,
+                  color: textColor,
                   fontSize: 16,
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
                 side: BorderSide(
-                  color: widget.isDarkMode ? Colors.white24 : Colors.black12,
+                  color: widget.isDarkMode ? Colors.white10 : Colors.black12,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
@@ -392,7 +325,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   Future<void> _handleLogin() async {
     FocusScope.of(context).unfocus();
-    
     final email = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -406,7 +338,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     try {
       await _authService.login(email, password);
     } on FirebaseAuthException catch (e) {
-      debugPrint('Login Error: ${e.code} - ${e.message}');
       _showError('${e.code}: ${e.message ?? 'An error occurred during login'}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -415,7 +346,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   Future<void> _handleSignup() async {
     FocusScope.of(context).unfocus();
-    
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
@@ -436,20 +366,20 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         gender: _selectedGender,
         password: password,
       );
-    } on FirebaseAuthException catch (e) {
-      debugPrint('FirebaseAuthException during sign up: ${e.code} - ${e.message}');
-      if (e.code == 'email-already-in-use') {
-        _showError('Notification: This email already exists. Please login.');
-      } else if (e.code == 'weak-password') {
-        _showError('The password provided is too weak.');
-      } else if (e.code == 'operation-not-allowed') {
-        _showError('Email/password sign-up is disabled in Firebase Console.');
-      } else {
-        _showError('${e.code}: ${e.message ?? "Sign-up failed"}');
+      
+      await _authService.signOut();
+
+      if (mounted) {
+        _showSuccess('Account created successfully! Please login.');
+        setState(() {
+          _isLoginMode = true;
+          _usernameController.text = email;
+        });
       }
+    } on FirebaseAuthException catch (e) {
+      _showError('${e.code}: ${e.message ?? "Sign-up failed"}');
     } catch (e) {
-      debugPrint('Error during sign up: $e');
-      _showError('Error saving user data: $e');
+      _showError('Error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -458,7 +388,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Future<void> _handleGoogleSignIn() async {
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
-    
     try {
       await _authService.signInWithGoogle();
     } catch (e) {
@@ -470,131 +399,23 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   void _showError(String message) {
     if (!mounted) return;
-    
-    // Use addPostFrameCallback to avoid "invoked during build" or engine dispatch errors on web
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.redAccent.withOpacity(0.9),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(20),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    });
-  }
-}
-
-class _BackgroundGlowPainter extends CustomPainter {
-  final double progress;
-
-  _BackgroundGlowPainter(this.progress);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.width * 0.45;
-
-    final glow1 = Paint()
-      ..shader = RadialGradient(
-        colors: [const Color(0xFFFB7E3F).withOpacity(0.22), Colors.transparent],
-        stops: const [0.0, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
-
-    final glow2 = Paint()
-      ..shader = RadialGradient(
-        colors: [const Color(0xFF00C0FF).withOpacity(0.18), Colors.transparent],
-        stops: const [0.0, 1.0],
-      ).createShader(Rect.fromCircle(center: center.translate(80, -60), radius: radius * 0.75));
-
-    canvas.drawCircle(center.translate(-40, -20), radius, glow1);
-    canvas.drawCircle(center.translate(60, 40), radius * 0.85, glow2);
-
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(progress * 2 * pi);
-    canvas.translate(-center.dx, -center.dy);
-
-    final rotationGlow = Paint()
-      ..shader = SweepGradient(
-        startAngle: 0,
-        endAngle: 2 * pi,
-        colors: [
-          const Color(0xFF009FFD).withOpacity(0.24),
-          const Color(0xFFE64CFF).withOpacity(0.14),
-          const Color(0xFFFA6400).withOpacity(0.12),
-          const Color(0xFF009FFD).withOpacity(0.24),
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius * 1.1));
-
-    canvas.drawCircle(center, radius * 1.1, rotationGlow);
-    canvas.restore();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant _BackgroundGlowPainter oldDelegate) {
-    return oldDelegate.progress != progress;
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final double rotation;
-  final double innerScale;
-
-  _RingPainter({required this.rotation, required this.innerScale});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = min(size.width, size.height) * 0.42;
-
-    final ringPaint = Paint()
-      ..shader = SweepGradient(
-        startAngle: 0,
-        endAngle: 2 * pi,
-        colors: [
-          const Color(0xFF39D2FF),
-          const Color(0xFFE57CFF),
-          const Color(0xFF39D2FF),
-        ],
-        stops: const [0.0, 0.55, 1.0],
-        transform: GradientRotation(rotation * 2 * pi),
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-
-    final glowPaint = Paint()
-      ..color = const Color(0xFF39D2FF).withOpacity(0.14)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28);
-
-    canvas.drawCircle(center, radius * innerScale, glowPaint);
-    canvas.drawCircle(center, radius, ringPaint);
-
-    final accentPaint = Paint()
-      ..color = const Color(0xFFFFFFFF).withOpacity(0.24)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    canvas.drawCircle(center, radius * 0.78, accentPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RingPainter oldDelegate) {
-    return oldDelegate.rotation != rotation || oldDelegate.innerScale != innerScale;
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 }

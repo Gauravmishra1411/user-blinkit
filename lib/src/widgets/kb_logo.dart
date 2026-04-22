@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 
 class KBLogo extends StatefulWidget {
   final double size;
-  const KBLogo({Key? key, this.size = 180}) : super(key: key);
+  final bool isAnimated;
+  const KBLogo({Key? key, this.size = 180, this.isAnimated = true}) : super(key: key);
 
   @override
   State<KBLogo> createState() => _KBLogoState();
@@ -30,7 +31,7 @@ class _KBLogoState extends State<KBLogo> with TickerProviderStateMixin {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && widget.isAnimated) {
         _rotateController.repeat();
         _reverseRotateController.repeat();
       }
@@ -61,7 +62,7 @@ class _KBLogoState extends State<KBLogo> with TickerProviderStateMixin {
                 animation: _rotateController,
                 builder: (context, child) {
                   return Transform.rotate(
-                    angle: _rotateController.value * 2 * pi,
+                    angle: widget.isAnimated ? _rotateController.value * 2 * pi : 0.0,
                     child: CustomPaint(
                       size: const Size(180, 180),
                       painter: RingPainter(
@@ -80,7 +81,7 @@ class _KBLogoState extends State<KBLogo> with TickerProviderStateMixin {
                 animation: _reverseRotateController,
                 builder: (context, child) {
                   return Transform.rotate(
-                    angle: -_reverseRotateController.value * 2 * pi,
+                    angle: widget.isAnimated ? -_reverseRotateController.value * 2 * pi : 0.0,
                     child: CustomPaint(
                       size: const Size(180, 180),
                       painter: RingPainter(

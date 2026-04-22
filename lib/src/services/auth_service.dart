@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,7 +10,9 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   // Initialize GoogleSignIn standard way
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb ? dotenv.get('GOOGLE_WEB_CLIENT_ID') : null,
+  );
 
   AuthService() {
     // google_sign_in doesn't need explicit initialization in most cases, 

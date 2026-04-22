@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -10,21 +9,11 @@ class AuthService {
   
   // Initialize GoogleSignIn standard way
   final GoogleSignIn _googleSignIn = GoogleSignIn();
-  bool _isGoogleInitialized = false;
 
   AuthService() {
-    _initializeGoogleSignIn();
-  }
-
-  Future<void> _initializeGoogleSignIn() async {
-    if (_isGoogleInitialized) return;
-    try {
-      debugPrint('Initializing Google Sign In (Service Constructor)...');
-      await _googleSignIn.initialize();
-      _isGoogleInitialized = true;
-    } catch (e) {
-      debugPrint('Error initializing Google Sign In: $e');
-    }
+    // google_sign_in doesn't need explicit initialization in most cases, 
+    // but we can call signInSilently to check if user is already signed in.
+    _googleSignIn.signInSilently();
   }
 
   // Stream of auth state changes
@@ -73,21 +62,14 @@ class AuthService {
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Ensure it's initialized before usage
-      if (!_isGoogleInitialized) {
-        await _initializeGoogleSignIn();
-      }
-      
-      // In 7.x, the method to start auth is authenticate()
-      final GoogleSignInAccount? googleUser = await _googleSignIn.authenticate();
+      // In standard google_sign_in, use signIn()
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
 
-      // In 7.x, get tokens from the account
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       
-      // Note: idToken is usually sufficient for Firebase GoogleAuthProvider on Google
-      // On web, accessToken might be null or handled specifically.
       final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 

@@ -11,7 +11,7 @@ class AuthService {
   
   // Initialize GoogleSignIn standard way
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: kIsWeb ? dotenv.get('GOOGLE_WEB_CLIENT_ID') : null,
+    clientId: kIsWeb ? (dotenv.env['GOOGLE_WEB_CLIENT_ID'] ?? '') : null,
   );
 
   AuthService() {

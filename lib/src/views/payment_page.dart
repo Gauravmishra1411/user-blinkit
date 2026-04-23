@@ -837,7 +837,7 @@ class _ThankYouPageState extends State<ThankYouPage> with TickerProviderStateMix
                                       width: double.infinity,
                                       height: 50,
                                       child: ElevatedButton(
-                                        onPressed: () => Navigator.of(context).pop(),
+                                        onPressed: () => Navigator.of(context).pop(true),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: const Color(0xFF2D7A3E),
                                           foregroundColor: Colors.white,

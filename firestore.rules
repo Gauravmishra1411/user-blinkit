@@ -1,11 +1,47 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Helper function to check if the user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+
+    // --- ORDERS ---
+    match /orders/{orderId} {
+      // Temporarily allow global access for development and testing
+      allow read, write: if true; 
+    }
+
+    // --- PRODUCTS & STOREFRONT ---
+    match /product/{id} { 
+      allow read: if true; 
+      allow write: if true; 
+    }
+    match /products/{id} { 
+      allow read: if true; 
+      allow write: if true; 
+    }
+    match /categories/{id} { 
+      allow read: if true; 
+      allow write: if true; 
+    }
+    match /banners/{id} { 
+      allow read: if true; 
+      allow write: if true; 
+    }
+
+    // --- USERS ---
+    match /users/{userId} {
+      allow create: if true;
+      allow read, update: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Default: Allow read/write for development on other paths
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }

@@ -39,7 +39,9 @@ class UserModel {
       phone: map['phone'] ?? '',
       gender: map['gender'] ?? '',
       role: map['role'] ?? 'user',
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+      createdAt: map['createdAt'] is Timestamp 
+          ? (map['createdAt'] as Timestamp).toDate() 
+          : (map['createdAt'] is String ? DateTime.tryParse(map['createdAt']) : null),
     );
   }
 }

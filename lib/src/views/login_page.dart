@@ -72,7 +72,7 @@ class _LoginPageState extends State<LoginPage> {
         borderSide: BorderSide(width: 2, color: accent),
       ),
       filled: true,
-      fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+      fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04), // Slightly darker for better visibility in light mode
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       suffixIcon: suffixIcon,
     );

@@ -26,6 +26,7 @@ class CategoryItem {
 }
 
 class ProductItem {
+  final String id;
   final String name;
   final String size;
   final String price;
@@ -33,8 +34,11 @@ class ProductItem {
   final String imageUrl;
   final List<String> images;
   final String category;
+  final bool isRecent;
+  final double rating;
 
   ProductItem({
+    required this.id,
     required this.name,
     required this.size,
     required this.price,
@@ -42,6 +46,8 @@ class ProductItem {
     required this.imageUrl,
     List<String>? images,
     required this.category,
+    this.isRecent = false,
+    this.rating = 4.5,
   }) : this.images = images ?? [imageUrl];
 }
 
@@ -67,6 +73,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   int _selectedCategoryIndex = 0;
 
   List<ProductItem> allProducts = [];
+  List<ProductItem> recentlyAddedProducts = [];
   StreamSubscription? _productSubscription;
   StreamSubscription? _categorySubscription;
   StreamSubscription? _bannerSubscription;
@@ -78,6 +85,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   final List<ProductItem> _fallbackProducts = [
     ProductItem(
+      id: 'fb1',
       name: 'Fresh Milk',
       size: '500ml',
       price: '₹35',
@@ -86,6 +94,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       category: 'Dairy, Bread & Eggs',
     ),
     ProductItem(
+      id: 'fb2',
       name: 'Organic Tomatoes',
       size: '500g',
       price: '₹45',
@@ -94,6 +103,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       category: 'Fruits & Vegetables',
     ),
     ProductItem(
+      id: 'fb3',
       name: 'Cold Coffee',
       size: '200ml',
       price: '₹60',
@@ -102,6 +112,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       category: 'Cold Drinks & Juices',
     ),
     ProductItem(
+      id: 'fb4',
       name: 'Potato Chips',
       size: '100g',
       price: '₹20',
@@ -110,8 +121,9 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       category: 'Snacks & Munchies',
     ),
   ];
-  final Map<int, int> _productQty = {}; // productIndex -> qty
-  final Set<int> _favoriteProducts = {}; // Successfully mocked favorites
+  List<int> _recentlyViewedIndices = []; // To track recently viewed products index
+  Map<int, int> _productQty = {}; // productIndex -> qty
+  Set<String> _favoriteProductIds = {}; 
   bool _isDonationEnabled = false;
   int _selectedTip = 0;
   int _selectedAddressIndex = 0;
@@ -200,11 +212,53 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     _startBannerTimer();
     _startPlaceholderTimer();
     
-    // Initialize with fallbacks and start listening to Firestore
     allProducts = List.from(_fallbackProducts);
     _listenToProducts();
     _listenToCategories();
     _listenToBanners();
+    _loadRecentlyViewed();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? stored = prefs.getStringList('favorite_products');
+    if (stored != null) {
+      setState(() {
+        _favoriteProductIds = stored.toSet();
+      });
+    }
+  }
+
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorite_products', _favoriteProductIds.toList());
+  }
+
+  void _toggleFavorite(String productId) {
+    setState(() {
+      if (_favoriteProductIds.contains(productId)) {
+        _favoriteProductIds.remove(productId);
+      } else {
+        _favoriteProductIds.add(productId);
+      }
+    });
+    _saveFavorites();
+  }
+
+  Future<void> _loadRecentlyViewed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? stored = prefs.getStringList('recently_viewed');
+    if (stored != null) {
+      setState(() {
+        _recentlyViewedIndices = stored.map((e) => int.parse(e)).toList();
+      });
+    }
+  }
+
+  Future<void> _saveRecentlyViewed() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recently_viewed', _recentlyViewedIndices.map((e) => e.toString()).toList());
   }
 
   void _listenToProducts() {
@@ -212,10 +266,30 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
         .collection('product')
         .snapshots()
         .listen((snapshot) {
+      DateTime parseDateTime(dynamic value) {
+        if (value is Timestamp) return value.toDate();
+        if (value is String) return DateTime.tryParse(value) ?? DateTime(1970);
+        return DateTime(1970);
+      }
+      
       if (snapshot.docs.isNotEmpty) {
         setState(() {
-          allProducts = snapshot.docs.map((doc) {
+          final List<Map<String, dynamic>> docsWithData = snapshot.docs.map((doc) {
             final data = doc.data();
+            data['id'] = doc.id;
+            return data;
+          }).toList();
+
+          // Filter by visibility and sort by createdAt
+          docsWithData.removeWhere((data) => data['isVisible'] == false);
+          
+          docsWithData.sort((a, b) {
+            final aTime = parseDateTime(a['createdAt']);
+            final bTime = parseDateTime(b['createdAt']);
+            return bTime.compareTo(aTime); // Descending
+          });
+
+          allProducts = docsWithData.map((data) {
             final List<dynamic> gallery = data['gallery'] ?? [];
             final String mainImg = data['imageUrl'] ?? data['mainImage'] ?? '';
             final List<String> images = gallery.isNotEmpty 
@@ -226,6 +300,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
             final String sizeStr = sizes.isNotEmpty ? sizes.first.toString() : 'Regular';
 
             return ProductItem(
+              id: data['id'] ?? data['title'] ?? data['name'] ?? '',
               name: data['title'] ?? data['name'] ?? 'Unnamed Product',
               size: sizeStr,
               price: '₹${data['price'] ?? data['mrp'] ?? '0'}',
@@ -233,8 +308,48 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               imageUrl: mainImg,
               category: data['category'] ?? 'All',
               images: images,
+              isRecent: data['isRecent'] == true,
+              rating: double.tryParse(data['rating']?.toString() ?? '4.5') ?? 4.5,
             );
           }).toList();
+
+          final List<Map<String, dynamic>> recentDocs = docsWithData
+              .where((data) => data['isRecent'] == true)
+              .toList();
+
+          recentDocs.sort((a, b) {
+            final aTime = parseDateTime(a['recentAddedAt'] ?? a['createdAt']);
+            final bTime = parseDateTime(b['recentAddedAt'] ?? b['createdAt']);
+            return bTime.compareTo(aTime); // Descending
+          });
+
+          final List<ProductItem> recentlyAddedItems = recentDocs.map((data) {
+                final List<dynamic> gallery = data['gallery'] ?? [];
+                final String mainImg = data['imageUrl'] ?? data['mainImage'] ?? '';
+                final List<String> images = gallery.isNotEmpty 
+                    ? gallery.map((e) => e.toString()).toList() 
+                    : (mainImg.isNotEmpty ? [mainImg] : []);
+                
+                final List<dynamic> sizes = data['selectedSizes'] ?? [];
+                final String sizeStr = sizes.isNotEmpty ? sizes.first.toString() : 'Regular';
+
+                return ProductItem(
+                  id: data['id'] ?? data['title'] ?? data['name'] ?? '',
+                  name: data['title'] ?? data['name'] ?? 'Unnamed Product',
+                  size: sizeStr,
+                  price: '₹${data['price'] ?? data['mrp'] ?? '0'}',
+                  deliveryMins: '15-20',
+                  imageUrl: mainImg,
+                  category: data['category'] ?? 'All',
+                  images: images,
+                  isRecent: true,
+                  rating: double.tryParse(data['rating']?.toString() ?? '4.5') ?? 4.5,
+                );
+              }).toList();
+          
+          setState(() {
+            recentlyAddedProducts = recentlyAddedItems;
+          });
           
           if (allProducts.isEmpty) {
             allProducts = List.from(_fallbackProducts);
@@ -247,24 +362,30 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   void _listenToBanners() {
     _bannerSubscription = FirebaseFirestore.instance
         .collection('banners')
-        .where('isActive', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .listen((snapshot) {
-      if (mounted && snapshot.docs.isNotEmpty) {
-        setState(() {
-          foodData = snapshot.docs.map((doc) {
-            final data = doc.data();
-            return {
-              "title": data['title']?.toString() ?? '',
-              "subtitle": data['subtitle']?.toString() ?? '',
-              "offer": data['offer']?.toString() ?? '',
-              "img": data['img']?.toString() ?? '',
-            };
-          }).toList();
-        });
+      if (mounted) {
+        // Filter active banners locally to avoid needing complex Firestore indices immediately
+        final activeDocs = snapshot.docs.where((doc) {
+          final data = doc.data();
+          return data['isActive'] == true;
+        }).toList();
+
+        if (activeDocs.isNotEmpty) {
+          setState(() {
+            foodData = activeDocs.map((doc) {
+              final data = doc.data();
+              return {
+                "title": data['title']?.toString() ?? 'Special Offer',
+                "subtitle": data['subtitle']?.toString() ?? 'Limited time only',
+                "offer": data['offer']?.toString() ?? 'Deal',
+                "img": data['img']?.toString() ?? '',
+              };
+            }).toList();
+          });
+        }
       }
-    });
+    }, onError: (e) => debugPrint('Banner Stream Error: $e'));
   }
 
   void _listenToCategories() {
@@ -444,144 +565,150 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
+                  if (_searchController.text.isNotEmpty) ..._buildSearchResults(),
+                  if (_searchController.text.isEmpty) ..._buildRecentlyViewedSection(),
                   const SizedBox(height: 20),
+                  _buildStaticAdBanner(),
+                  const SizedBox(height: 24),
                   _buildSectionHeader('Shop by Category'),
                   const SizedBox(height: 12),
-                  Container(
-                    height: 480,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.02) : Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: GridView.builder(
-                      controller: _categoryScrollController,
-                      padding: const EdgeInsets.all(16),
-                      physics: const BouncingScrollPhysics(),
-                      scrollDirection: Axis.horizontal,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisExtent: 180, // Card width
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
-                      itemCount: categories.length,
-                      itemBuilder: (context, index) {
-                        return _CategoryHoverCard(
-                          category: categories[index],
-                          isDark: isDark,
-                          onTap: () async {
-                            setState(() => _selectedCategoryIndex = index);
-                            final updatedCart = await Navigator.push<Map<int, int>>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AllProductsPage(
-                                  title: categories[index].label,
-                                  categoryFilter: categories[index].label,
-                                  allProducts: allProducts,
-                                  initialCart: Map.from(_productQty),
-                                  isDarkMode: isDark,
-                                ),
-                              ),
-                            );
-                            if (updatedCart != null) {
-                              setState(() {
-                                _productQty.clear();
-                                _productQty.addAll(updatedCart);
-                              });
-                            }
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                  _buildCategoryGrid(),
+                  const SizedBox(height: 32),
+                  if (recentlyAddedProducts.isNotEmpty) ...[
+                    _buildSectionHeader('Recently Added'),
+                    const SizedBox(height: 16),
+                    _buildRecentlyAddedSection(),
+                    const SizedBox(height: 32),
+                  ],
                   const SizedBox(height: 32),
                   _buildSectionHeader('Handpicked for You'),
                   const SizedBox(height: 16),
                   SizedBox(
-                    height: 180,
+                    height: 230, // Increased to 230 for a larger, more premium look
                     child: PageView.builder(
                       controller: _bannerController,
-                      itemCount: 10000, // For infinite feel
-                      onPageChanged: (index) => setState(() => _currentBannerIndex = index % foodData.length),
+                      itemCount: foodData.isEmpty ? 1 : 10000, 
+                      onPageChanged: (index) => setState(() => _currentBannerIndex = index % (foodData.isEmpty ? 1 : foodData.length)),
                       itemBuilder: (context, index) {
-                        final item = foodData[index % foodData.length];
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            image: DecorationImage(
-                              image: item["img"]!.startsWith('assets/')
-                                  ? AssetImage(item["img"]!) as ImageProvider
-                                  : NetworkImage(item["img"]!),
-                              fit: BoxFit.cover,
+                        if (foodData.isEmpty) {
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.black12,
+                              borderRadius: BorderRadius.circular(20),
                             ),
+                            child: const Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final item = foodData[index % foodData.length];
+                        final bool isCurrent = _currentBannerIndex == (index % foodData.length);
+                        
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOutCubic,
+                          margin: EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: isCurrent ? 0 : 8, // Subtle vertical shrink for inactive
                           ),
-                          child: Stack(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.black.withOpacity(0.7),
-                                      Colors.transparent
-                                    ],
-                                    begin: Alignment.bottomLeft,
-                                    end: Alignment.topRight,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: isCurrent ? [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 15,
+                                offset: const Offset(0, 8),
+                              )
+                            ] : [],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Stack(
+                              children: [
+                                // Stronger 50% Zoom-Out Effect
+                                AnimatedScale(
+                                  scale: isCurrent ? 1.0 : 1.5,
+                                  duration: const Duration(milliseconds: 1500),
+                                  curve: Curves.easeOutQuart,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      image: DecorationImage(
+                                        image: item["img"]!.startsWith('assets/')
+                                            ? AssetImage(item["img"]!) as ImageProvider
+                                            : NetworkImage(item["img"]!),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Positioned(
-                                bottom: 20,
-                                left: 20,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item["title"]!,
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.black.withOpacity(0.8),
+                                        Colors.transparent
+                                      ],
+                                      begin: Alignment.bottomLeft,
+                                      end: Alignment.topRight,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 25,
+                                  left: 25,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item["title"]!,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        item["subtitle"]!,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.8),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 16,
+                                  right: 16,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFFF416C), Color(0xFFFF4B2B)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.red.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      '${item["offer"]!}% OFF',
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12,
                                       ),
-                                    ),
-                                    Text(
-                                      item["subtitle"]!,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Positioned(
-                                top: 16,
-                                right: 16,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.redAccent,
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Text(
-                                    item["offer"]!,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         );
                       },
@@ -957,7 +1084,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               Builder(builder: (context) {
                 final catLabel = categories.isNotEmpty ? categories[_selectedCategoryIndex].label : 'All';
                 final filtered = allProducts
-                    .where((p) => catLabel == 'All' || p.category == catLabel)
+                    .where((p) => (catLabel == 'All' || p.category == catLabel) && !p.isRecent)
                     .take(9)
                     .toList();
 
@@ -990,7 +1117,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
               // ───────────────────────────────────────
               Builder(builder: (context) {
                 final dairyProducts = allProducts
-                    .where((p) => p.category == 'Dairy, Bread & Eggs')
+                    .where((p) => p.category == 'Dairy, Bread & Eggs' && !p.isRecent)
                     .toList();
                 
                 final previewCount = dairyProducts.length > 9 ? 9 : dairyProducts.length;
@@ -1116,8 +1243,11 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
               _FeaturedProductsSection(
                 allProducts: allProducts,
-                newArrivalProducts: allProducts.length >= 5 ? allProducts.sublist(allProducts.length - 5) : allProducts,
-                onAddToCart: (idx) => setState(() => _productQty[idx] = (_productQty[idx] ?? 0) + 1),
+                newArrivalProducts: recentlyAddedProducts,
+                favoriteProductIds: _favoriteProductIds,
+                onFavoriteToggle: _toggleFavorite,
+                onAddToCart: (idx) => setState(() =>
+                    _productQty[idx] = (_productQty[idx] ?? 0) + 1),
                 onShowDetail: (product, idx) => _showProductDetail(product, idx),
                 productQty: _productQty,
                 isDark: isDark,
@@ -1170,21 +1300,50 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product image
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Center(
-                  child: Image.network(
-                    product.imageUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.image_not_supported_outlined,
-                      color: Colors.black12,
-                      size: 50,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Center(
+                      child: Image.network(
+                        product.imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Colors.black12,
+                          size: 50,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => _toggleFavorite(product.id),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _favoriteProductIds.contains(product.id) ? Icons.favorite : Icons.favorite_border,
+                          size: 18,
+                          color: _favoriteProductIds.contains(product.id) ? Colors.red : Colors.grey.shade400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -1215,6 +1374,19 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                             fontWeight: FontWeight.w800,
                             color: Colors.black87,
                             letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(width: 1, height: 10, color: Colors.black12),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.star, size: 11, color: Color(0xFFFFB300)),
+                        const SizedBox(width: 2),
+                        Text(
+                          product.rating.toString(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
                           ),
                         ),
                       ],
@@ -1342,15 +1514,125 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     );
   }
 
+  Widget _buildStaticAdBanner() {
+    return Container(
+      width: double.infinity,
+      height: 140,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: isDark 
+              ? [const Color(0xFFFF512F), const Color(0xFFDD2476)] 
+              : [const Color(0xFFFF8008), const Color(0xFFFFC837)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.redAccent : Colors.orangeAccent).withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -30,
+            top: -30,
+            child: CircleAvatar(
+              radius: 80,
+              backgroundColor: Colors.white.withOpacity(0.1),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'LIMITED TIME OFFER',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Up to 50% OFF',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Text(
+                        'on Premium Jackets & Bags',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.orange.shade800,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Shop Now',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Product Detail Card ──────────────────────────────────────
   void _showProductDetail(ProductItem product, [int? index]) {
     final int globalIdx = index ?? allProducts.indexOf(product);
+    
+    // Add to recently viewed if not already at the front
+    setState(() {
+      _recentlyViewedIndices.remove(globalIdx);
+      _recentlyViewedIndices.insert(0, globalIdx);
+      if (_recentlyViewedIndices.length > 10) {
+        _recentlyViewedIndices.removeLast();
+      }
+    });
+    _saveRecentlyViewed();
     
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final bool isFavorite = _favoriteProducts.contains(globalIdx);
+          final bool isFavorite = _favoriteProductIds.contains(product.id);
           final int qty = _productQty[globalIdx] ?? 0;
           final PageController pageController = PageController();
           
@@ -1407,13 +1689,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                           right: 16,
                           child: GestureDetector(
                             onTap: () {
-                              setState(() {
-                                if (_favoriteProducts.contains(globalIdx)) {
-                                  _favoriteProducts.remove(globalIdx);
-                                } else {
-                                  _favoriteProducts.add(globalIdx);
-                                }
-                              });
+                              _toggleFavorite(product.id);
                               setDialogState(() {}); // Update local dialog state
                             },
                             child: CircleAvatar(
@@ -2495,7 +2771,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.pop(context); // Close address modal
                           
                           // Prepare cart data for payment page
@@ -2511,7 +2787,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                             }
                           });
 
-                          Navigator.push(
+                          final bool? orderSuccess = await Navigator.push<bool>(
                             context,
                             PageRouteBuilder(
                                 pageBuilder: (context, animation, secondaryAnimation) => PaymentPage(
@@ -2534,6 +2810,12 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                               transitionDuration: const Duration(milliseconds: 600),
                             ),
                           );
+
+                          if (orderSuccess == true) {
+                            setState(() {
+                              _productQty.clear();
+                            });
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2D7A3E),
@@ -3230,11 +3512,241 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   // ── DYNAMIC CATEGORY SECTIONS ──────────────────────────────
 
+  List<Widget> _buildRecentlyViewedSection() {
+    // If no history, show "Recently Added" instead
+    final bool hasHistory = _recentlyViewedIndices.isNotEmpty;
+    final List<int> displayIndices = hasHistory 
+      ? _recentlyViewedIndices 
+      : (allProducts.length > 8 ? List.generate(8, (i) => allProducts.length - 1 - i) : List.generate(allProducts.length, (i) => allProducts.length - 1 - i));
+
+    if (displayIndices.isEmpty) return [];
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(0, 10, 0, 12),
+        child: Row(
+          children: [
+            Icon(
+              hasHistory ? Icons.history : Icons.auto_awesome_outlined, 
+              color: hasHistory ? const Color(0xFF4F8EFE) : const Color(0xFFF5C842), 
+              size: 20
+            ),
+            const SizedBox(width: 8),
+            Text(
+              hasHistory ? 'Recently Viewed' : 'Recently Added',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Spacer(),
+            if (hasHistory)
+              TextButton(
+                onPressed: () {
+                  setState(() => _recentlyViewedIndices.clear());
+                  _saveRecentlyViewed();
+                },
+                child: const Text('Clear', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ),
+          ],
+        ),
+      ),
+      SizedBox(
+        height: 260,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: displayIndices.length,
+          itemBuilder: (context, idx) {
+            final productIdx = displayIndices[idx];
+            if (productIdx < 0 || productIdx >= allProducts.length) return const SizedBox();
+            final product = allProducts[productIdx];
+            
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: _buildSmallProductCard(product, productIdx),
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 20),
+      Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05), height: 1),
+    ];
+  }
+
+  Widget _buildSmallProductCard(ProductItem product, int index) {
+    const cardBg = Colors.white;
+    const borderColor = Color(0xFFF1F1F1);
+    
+    return GestureDetector(
+      onTap: () => _showProductDetail(product, index),
+      child: Container(
+        width: 150,
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Center(
+                  child: Image.network(product.imageUrl, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    product.price,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF2D7A3E)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSearchResults() {
+    final query = _searchController.text.toLowerCase().trim();
+    if (query.isEmpty) return [];
+
+    final results = allProducts.where((p) {
+      return p.name.toLowerCase().contains(query) || 
+             p.category.toLowerCase().contains(query);
+    }).toList();
+
+    if (results.isEmpty) {
+      return [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 60),
+          width: double.infinity,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.search_off_rounded,
+                size: 80,
+                color: isDark ? Colors.white10 : Colors.black12,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'No results found for "$query"',
+                style: TextStyle(
+                  color: isDark ? Colors.white54 : Colors.black54,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try checking your spelling or use more general terms',
+                style: TextStyle(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 40),
+      ];
+    }
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(0, 10, 0, 16),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 22,
+              decoration: BoxDecoration(
+                color: const Color(0xFF27C93F),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Search Results',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${results.length} items',
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black38,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+      GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: results.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
+          childAspectRatio: 0.62,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+        ),
+        itemBuilder: (context, idx) {
+          final product = results[idx];
+          final globalIdx = allProducts.indexOf(product);
+          return _buildProductCard(product, globalIdx);
+        },
+      ),
+      const SizedBox(height: 20),
+      const Divider(height: 60),
+      // Only show the header for regular content if we have search results
+      Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Row(
+          children: [
+             Icon(Icons.auto_awesome, color: const Color(0xFFF5C842), size: 18),
+             const SizedBox(width: 8),
+             Text(
+               'Discover More',
+               style: TextStyle(
+                 color: isDark ? Colors.white70 : Colors.black54,
+                 fontSize: 16,
+                 fontWeight: FontWeight.bold,
+               ),
+             ),
+          ],
+        ),
+      ),
+    ];
+  }
+
   List<Widget> _buildCategoryProductSections() {
     // Group products by category
     Map<String, List<ProductItem>> grouped = {};
     for (var p in allProducts) {
-      if (p.category == 'All') continue;
+      if (p.category == 'All' || p.isRecent) continue;
       grouped.putIfAbsent(p.category, () => []).add(p);
     }
 
@@ -3298,6 +3810,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                   padding: const EdgeInsets.only(right: 12),
                   child: _AddressPageProductCard(
                     product: product,
+                    isFavorite: _favoriteProductIds.contains(product.id),
+                    onFavoriteToggle: () => _toggleFavorite(product.id),
                     qty: _productQty[gIdx] ?? 0,
                     onAddToCart: () => setState(() =>
                         _productQty[gIdx] = (_productQty[gIdx] ?? 0) + 1),
@@ -3311,6 +3825,71 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
         ],
       );
     }).toList();
+  }
+
+  Widget _buildCategoryGrid() {
+    return Container(
+      height: 480,
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.02) : Colors.white,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: GridView.builder(
+        controller: _categoryScrollController,
+        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        scrollDirection: Axis.horizontal,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisExtent: 180, // Card width
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          return _CategoryHoverCard(
+            category: categories[index],
+            isDark: isDark,
+            onTap: () async {
+              setState(() => _selectedCategoryIndex = index);
+              final updatedCart = await Navigator.push<Map<int, int>>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AllProductsPage(
+                    title: categories[index].label,
+                    categoryFilter: categories[index].label,
+                    allProducts: allProducts,
+                    initialCart: Map.from(_productQty),
+                    isDarkMode: isDark,
+                  ),
+                ),
+              );
+              if (updatedCart != null) {
+                setState(() {
+                  _productQty.clear();
+                  _productQty.addAll(updatedCart);
+                });
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRecentlyAddedSection() {
+    return SizedBox(
+      height: 280,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: recentlyAddedProducts.length,
+        itemBuilder: (context, index) {
+          final product = recentlyAddedProducts[index];
+          final globalIdx = allProducts.indexOf(product);
+          return _buildProductCard(product, globalIdx);
+        },
+      ),
+    );
   }
 }
 
@@ -3443,15 +4022,42 @@ class _AllProductsPageState extends State<AllProductsPage> {
   bool get isDark => Theme.of(context).brightness == Brightness.dark;
   late Map<int, int> _qty;
   late List<ProductItem> filteredProducts;
-  final Set<int> _favoriteProducts = {}; // Mocked favorites for category page
+  Set<String> _favoriteProductIds = {}; 
 
   @override
   void initState() {
     super.initState();
     _qty = Map.from(widget.initialCart);
     filteredProducts = widget.allProducts
-        .where((p) => widget.categoryFilter == 'All' || p.category == widget.categoryFilter)
+        .where((p) => (widget.categoryFilter == 'All' || p.category == widget.categoryFilter) && !p.isRecent)
         .toList();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? stored = prefs.getStringList('favorite_products');
+    if (stored != null) {
+      setState(() {
+        _favoriteProductIds = stored.toSet();
+      });
+    }
+  }
+
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorite_products', _favoriteProductIds.toList());
+  }
+
+  void _toggleFavorite(String productId) {
+    setState(() {
+      if (_favoriteProductIds.contains(productId)) {
+        _favoriteProductIds.remove(productId);
+      } else {
+        _favoriteProductIds.add(productId);
+      }
+    });
+    _saveFavorites();
   }
 
   @override
@@ -3512,8 +4118,8 @@ class _AllProductsPageState extends State<AllProductsPage> {
               const SizedBox(height: 14),
               Expanded(
                 child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 0.62,
@@ -3537,16 +4143,20 @@ class _AllProductsPageState extends State<AllProductsPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final bool isFavorite = _favoriteProducts.contains(globalIdx);
+          final bool isFavorite = _favoriteProductIds.contains(product.id);
           final int qty = _qty[globalIdx] ?? 0;
           final PageController pageController = PageController();
           
+          final screenWidth = MediaQuery.of(context).size.width;
+          final screenHeight = MediaQuery.of(context).size.height;
+          
           return Dialog(
             backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Container(
-              width: 350,
-              height: 580,
+              width: screenWidth > 600 ? 450 : screenWidth * 0.9,
+              height: screenHeight * 0.85,
+              constraints: const BoxConstraints(maxHeight: 700),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1F2E) : Colors.white,
                 borderRadius: BorderRadius.circular(30),
@@ -3591,13 +4201,7 @@ class _AllProductsPageState extends State<AllProductsPage> {
                           right: 16,
                           child: GestureDetector(
                             onTap: () {
-                              setState(() {
-                                if (_favoriteProducts.contains(globalIdx)) {
-                                  _favoriteProducts.remove(globalIdx);
-                                } else {
-                                  _favoriteProducts.add(globalIdx);
-                                }
-                              });
+                              _toggleFavorite(product.id);
                               setDialogState(() {});
                             },
                             child: CircleAvatar(
@@ -3840,6 +4444,19 @@ class _AllProductsPageState extends State<AllProductsPage> {
                           fontWeight: FontWeight.w600,
                           color: isDark ? Colors.white54 : Colors.black45,
                         )),
+                    const SizedBox(width: 8),
+                    Container(width: 1, height: 10, color: isDark ? Colors.white12 : Colors.black12),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.star, size: 11, color: Color(0xFFFFB300)),
+                    const SizedBox(width: 2),
+                    Text(
+                      product.rating.toString(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -4382,7 +4999,9 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
 class _FeaturedProductsSection extends StatefulWidget {
   final List<ProductItem> allProducts;
   final List<ProductItem> newArrivalProducts;
+  final Set<String> favoriteProductIds;
   final Function(int) onAddToCart;
+  final Function(String) onFavoriteToggle;
   final Function(ProductItem, int) onShowDetail;
   final Map<int, int> productQty;
   final bool isDark;
@@ -4390,7 +5009,9 @@ class _FeaturedProductsSection extends StatefulWidget {
   const _FeaturedProductsSection({
     required this.allProducts,
     required this.newArrivalProducts,
+    required this.favoriteProductIds,
     required this.onAddToCart,
+    required this.onFavoriteToggle,
     required this.onShowDetail,
     required this.productQty,
     required this.isDark,
@@ -4473,6 +5094,8 @@ class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> with
           margin: const EdgeInsets.only(right: 16, bottom: 10),
           child: _AddressPageProductCard(
             product: product,
+            isFavorite: widget.favoriteProductIds.contains(product.id),
+            onFavoriteToggle: () => widget.onFavoriteToggle(product.id),
             qty: widget.productQty[globalIdx] ?? 0,
             onAddToCart: () => widget.onAddToCart(globalIdx),
             onTap: () => widget.onShowDetail(product, globalIdx),
@@ -4487,13 +5110,17 @@ class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> with
 class _AddressPageProductCard extends StatelessWidget {
   final ProductItem product;
   final int qty;
+  final bool isFavorite;
   final VoidCallback onAddToCart;
+  final VoidCallback onFavoriteToggle;
   final VoidCallback onTap;
 
   const _AddressPageProductCard({
     required this.product,
     required this.qty,
+    required this.isFavorite,
     required this.onAddToCart,
+    required this.onFavoriteToggle,
     required this.onTap,
   });
 
@@ -4518,11 +5145,41 @@ class _AddressPageProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Center(
-                  child: Image.network(product.imageUrl, fit: BoxFit.contain),
-                ),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Center(
+                      child: Image.network(product.imageUrl, fit: BoxFit.contain),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: onFavoriteToggle,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          size: 18,
+                          color: isFavorite ? Colors.red : Colors.grey.shade400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -4539,6 +5196,19 @@ class _AddressPageProductCard extends StatelessWidget {
                         const Icon(Icons.timer_outlined, size: 11, color: Colors.black87),
                         const SizedBox(width: 4),
                         Text('${product.deliveryMins} MINS', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.black87)),
+                        const SizedBox(width: 8),
+                        Container(width: 1, height: 10, color: Colors.black12),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.star, size: 11, color: Color(0xFFFFB300)),
+                        const SizedBox(width: 2),
+                        Text(
+                          product.rating.toString(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                          ),
+                        ),
                       ],
                     ),
                   ),

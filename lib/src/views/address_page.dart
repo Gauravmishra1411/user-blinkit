@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:js' as js;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,7 @@ import './blog_page.dart';
 import './shoes_page.dart';
 import './bags_page.dart';
 import './about_page.dart';
+import '../widgets/app_footer.dart';
 
 // Unified models are now imported or defined below.
 // Removed hardcoded categoryProducts map.
@@ -83,6 +85,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   late ScrollController _mainScrollController;
   late ScrollController _categoryScrollController;
   double _scrollOffset = 0;
+  bool _isTawkVisible = false;
 
   List<CategoryItem> categories = [];
 
@@ -248,6 +251,19 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
         setState(() {
           _scrollOffset = _mainScrollController.offset;
         });
+
+        // Tawk.to visibility based on footer proximity
+        if (_mainScrollController.hasClients) {
+          final maxScroll = _mainScrollController.position.maxScrollExtent;
+          final currentScroll = _mainScrollController.position.pixels;
+          
+          // If within 400px of bottom, show chat. Otherwise hide.
+          if (currentScroll > maxScroll - 400) {
+            _toggleTawkVisibility(true);
+          } else {
+            _toggleTawkVisibility(false);
+          }
+        }
       }
     });
 
@@ -3610,120 +3626,9 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   }
 
   Widget _buildFooter() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF13141F) : const Color(0xFF1F202D),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
-      ),
-      padding: const EdgeInsets.fromLTRB(40, 60, 40, 40),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Column 1: Follow Us
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'FOLLOW US',
-                      style: TextStyle(
-                        color: const Color(0xFF4F8EFE),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        _footerSocialIcon(Icons.facebook),
-                        _footerSocialIcon(Icons.camera_alt_outlined),
-                        _footerSocialIcon(Icons.business_center_outlined), // LinkedIn
-                        _footerSocialIcon(Icons.chat_bubble_outline), // Twitter
-                        _footerSocialIcon(Icons.alternate_email), // G+
-                        _footerSocialIcon(Icons.image_outlined), // Behance
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Column 2: Shop
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _footerHeader('SHOP'),
-                    _footerLink('New In'),
-                    _footerLink('Shoes'),
-                    _footerLink('Bags'),
-                    _footerLink('Shirts'),
-                    _footerLink('Jackets'),
-                    _footerLink('Accessories'),
-                  ],
-                ),
-              ),
-              
-              // Column 3: Information
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _footerHeader('INFORMATION'),
-                    _footerLink('About Us'),
-                    _footerLink('Customers'),
-                    _footerLink('Service'),
-                    _footerLink('Collection'),
-                    _footerLink('Sellers'),
-                  ],
-                ),
-              ),
-              
-              // Column 4: Press
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _footerHeader('PRESS'),
-                    _footerLink('Press Releases'),
-                    _footerLink('Awards'),
-                    _footerLink('Testimonials'),
-                    _footerLink('Timeline'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 80),
-          Container(height: 1, color: Colors.white.withOpacity(0.1)),
-          const SizedBox(height: 40),
-          
-          // Bottom Navigation Strip
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _footerBottomLink('HOME'),
-              _footerBottomLink('BLOG'),
-              _footerBottomLink('EXPLORE'),
-              _footerBottomLink('WORKS'),
-              _footerBottomLink('SHOP'),
-              _footerBottomLink('BAGS'),
-              _footerBottomLink('ABOUT US'),
-              _footerBottomLink('CONTACT'),
-            ],
-          ),
-          const SizedBox(height: 40),
-          Text(
-            '© 2026 Blinkite User App. All Rights Reserved.',
-            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
-          ),
-        ],
-      ),
+    return AppFooter(
+      isDark: isDark,
+      onLinkTap: _onFooterLinkTap,
     );
   }
 
@@ -3774,8 +3679,39 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     );
   }
 
+  void _toggleTawkVisibility(bool show) {
+    if (_isTawkVisible == show) return;
+    try {
+      if (js.context.hasProperty('Tawk_API')) {
+        js.JsObject tawk = js.context['Tawk_API'];
+        if (show) {
+          tawk.callMethod('showWidget');
+        } else {
+          tawk.callMethod('hideWidget');
+        }
+        _isTawkVisible = show;
+      }
+    } catch (e) {
+      debugPrint('Tawk.to Visibility Error: $e');
+    }
+  }
+
   void _onFooterLinkTap(String title) async {
     final t = title.toUpperCase();
+    if (t == 'CUSTOMER SUPPORT') {
+      try {
+        if (js.context.hasProperty('Tawk_API')) {
+          js.JsObject tawk = js.context['Tawk_API'];
+          tawk.callMethod('showWidget');
+          tawk.callMethod('maximize');
+        } else {
+          debugPrint('Tawk_API is not loaded yet');
+        }
+      } catch (e) {
+        debugPrint('Tawk.to Error: $e');
+      }
+      return;
+    }
     if (t == 'HOME') {
       _mainScrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
       return;
@@ -3789,10 +3725,14 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       Navigator.push(context, MaterialPageRoute(builder: (context) => BlogPage(isDarkMode: isDark)));
       return;
     }
-    if (t == 'ABOUT US') {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => AboutPage(isDarkMode: isDark)));
-      return;
-    }
+      Navigator.push(context, MaterialPageRoute(builder: (context) => AboutPage(
+        isDarkMode: isDark,
+        onThemeToggle: widget.onThemeToggle,
+        address: _address,
+        userName: _userName,
+        totalCartItems: totalCartItems,
+        unreadNotificationsCount: _unreadNotificationsCount,
+      )));
     if (t == 'BAGS' || title.toUpperCase() == 'BAGS') {
       final updatedCart = await Navigator.push<Map<String, int>>(
         context,
@@ -5046,9 +4986,6 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                       decoration: BoxDecoration(
                         color: isDarkMode ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isDarkMode ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.1),
-                        ),
                       ),
                       child: Stack(
                         alignment: Alignment.centerLeft,
@@ -5064,8 +5001,8 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                               border: InputBorder.none,
                               prefixIcon: Icon(
                                 Icons.search,
-                                size: 16,
-                                color: isDarkMode ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.6),
+                                size: 20,
+                                color: isDarkMode ? Colors.white.withOpacity(0.8) : Colors.black.withOpacity(0.8),
                               ),
                             ),
                           ),
@@ -5103,25 +5040,6 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                   
                   // Notification Bell
                   _buildHeaderNotificationBell(),
-                  const SizedBox(width: 12),
-                  
-                  // Blog Button in Header
-
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context, 
-                      MaterialPageRoute(builder: (context) => BlogPage(isDarkMode: isDarkMode))
-                    ),
-                    child: Text(
-                      'BLOG',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: isDarkMode ? const Color(0xFF4F8EFE) : const Color(0xFF1A73E8),
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ),
                   const SizedBox(width: 12),
                   
                   // Cart Pill
@@ -5219,9 +5137,6 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                 decoration: BoxDecoration(
                   color: isDarkMode ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isDarkMode ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.1),
-                  ),
                 ),
                 child: Stack(
                   alignment: Alignment.centerLeft,
@@ -5237,8 +5152,8 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                         border: InputBorder.none,
                         prefixIcon: Icon(
                           Icons.search,
-                          size: 16,
-                          color: isDarkMode ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.6),
+                          size: 20,
+                          color: isDarkMode ? Colors.white.withOpacity(0.8) : Colors.black.withOpacity(0.8),
                         ),
                       ),
                     ),

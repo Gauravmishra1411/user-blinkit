@@ -39,9 +39,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Default: Allow read/write for development on other paths
+    // --- NOTIFICATIONS ---
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true;
+    }
+
+    // Default: Allow read/write for other development paths
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
   }
 }

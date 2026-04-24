@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
+import '../models/notification_model.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import './add_address_page.dart';
@@ -121,16 +124,24 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       category: 'Snacks & Munchies',
     ),
   ];
-  List<int> _recentlyViewedIndices = []; // To track recently viewed products index
-  Map<int, int> _productQty = {}; // productIndex -> qty
-  Set<String> _favoriteProductIds = {}; 
-  bool _isDonationEnabled = false;
+  List<String> _recentlyViewedIndices = []; // To track recently viewed products ID
+
+  Map<String, int> _productQty = {}; // productId -> qty
+
+  final NotificationService _notificationService = NotificationService();
+  int _unreadNotificationsCount = 0;
+  List<NotificationItem> _notifications = [];
+
   int _selectedTip = 0;
   int _selectedAddressIndex = 0;
-  String _userName = 'Rohit';
-  String _userEmail = 'rohit@example.com';
+  String _userName = 'User';
+  String _userEmail = '';
+  String _userId = '';
   String _userPhone = '7360842275';
   bool _showMoreCategories = false;
+  bool _isDonationEnabled = false;
+  Set<String> _favoriteProductIds = {};
+
 
   final List<Map<String, String>> _savedAddresses = [
     {
@@ -177,18 +188,31 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   double get itemsTotal {
     double total = 0;
-    _productQty.forEach((index, qty) {
-      if (index >= 0 && index < allProducts.length) {
-        final product = allProducts[index];
+    _productQty.forEach((id, qty) {
+      // Find product in either allProducts or recentlyAddedProducts or fallback
+      ProductItem? product;
+      try {
+        product = allProducts.firstWhere((p) => p.id == id);
+      } catch (_) {
+        try {
+          product = recentlyAddedProducts.firstWhere((p) => p.id == id);
+        } catch (_) {
+           // If still not found, check fallback
+           try {
+             product = _fallbackProducts.firstWhere((p) => p.id == id);
+           } catch (_) {}
+        }
+      }
+      
+      if (product != null) {
         final priceStr = product.price.replaceAll(RegExp(r'[^0-9.]'), '');
         final price = double.tryParse(priceStr) ?? 0;
         total += price * qty;
-      } else {
-        debugPrint('Warning: Invalid index $index in _productQty (allProducts.length: ${allProducts.length})');
       }
     });
     return total;
   }
+
 
   double get totalCartAmount => itemsTotal + 25 + 2 + (_isDonationEnabled ? 1 : 0) + _selectedTip;
 
@@ -200,6 +224,25 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     super.initState();
     _categoryScrollController = ScrollController();
     _mainScrollController = ScrollController();
+    
+    // Initialize FCM
+    _notificationService.initializeFCM();
+
+    // Notifications Listener
+    _notificationService.getNotifications().listen((notifs) {
+      if (mounted) {
+        setState(() {
+          _notifications = notifs;
+          _unreadNotificationsCount = notifs.where((n) => !n.isRead).length;
+        });
+      }
+    }, onError: (e) {
+      debugPrint('Notification Listener Error: $e');
+    });
+
+    // Load actual user info
+    _loadUserInfo();
+
     _mainScrollController.addListener(() {
       if (mounted) {
         setState(() {
@@ -218,6 +261,18 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     _listenToBanners();
     _loadRecentlyViewed();
     _loadFavorites();
+    _notificationService.initializeFCM();
+  }
+
+  void _loadUserInfo() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _userId = user.uid;
+        _userEmail = user.email ?? '';
+        _userName = user.displayName ?? user.email?.split('@')[0] ?? 'User';
+      });
+    }
   }
 
   Future<void> _loadFavorites() async {
@@ -251,14 +306,16 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     final List<String>? stored = prefs.getStringList('recently_viewed');
     if (stored != null) {
       setState(() {
-        _recentlyViewedIndices = stored.map((e) => int.parse(e)).toList();
+        _recentlyViewedIndices = stored;
+
       });
     }
   }
 
   Future<void> _saveRecentlyViewed() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('recently_viewed', _recentlyViewedIndices.map((e) => e.toString()).toList());
+    await prefs.setStringList('recently_viewed', _recentlyViewedIndices);
+
   }
 
   void _listenToProducts() {
@@ -557,9 +614,12 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                 onThemeToggle: widget.onThemeToggle,
                 totalCartItems: totalCartItems,
                 itemsTotal: itemsTotal,
+                unreadNotificationsCount: _unreadNotificationsCount,
                 onCartTap: _showCartModal,
                 onAccountTap: (ctx, pos) => _showAccountMenu(ctx, pos),
+                onNotificationTap: _showNotificationsOverlay,
               ),
+
             ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1165,7 +1225,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                           if (idx == previewCount) {
                             return GestureDetector(
                               onTap: () async {
-                                final updatedCart = await Navigator.push<Map<int, int>>(
+                                final updatedCart = await Navigator.push<Map<String, int>>(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => AllProductsPage(
@@ -1246,12 +1306,13 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                 newArrivalProducts: recentlyAddedProducts,
                 favoriteProductIds: _favoriteProductIds,
                 onFavoriteToggle: _toggleFavorite,
-                onAddToCart: (idx) => setState(() =>
-                    _productQty[idx] = (_productQty[idx] ?? 0) + 1),
+                onAddToCart: (id) => setState(() =>
+                    _productQty[id] = (_productQty[id] ?? 0) + 1),
                 onShowDetail: (product, idx) => _showProductDetail(product, idx),
                 productQty: _productQty,
                 isDark: isDark,
               ),
+
               
               const SizedBox(height: 60),
 
@@ -1267,8 +1328,9 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 }
 
   // ── Product Card ─────────────────────────────────────────────
-  Widget _buildProductCard(ProductItem product, int index) {
-    final qty = _productQty[index] ?? 0;
+  Widget _buildProductCard(ProductItem product, [int? index]) {
+    final qty = _productQty[product.id] ?? 0;
+
 
     // Forced white background as per user request
     const cardBg = Colors.white;
@@ -1430,7 +1492,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                       // ADD / quantity stepper
                       qty == 0
                           ? GestureDetector(
-                              onTap: () => setState(() => _productQty[index] = 1),
+                              onTap: () => setState(() => _productQty[product.id] = 1),
+
                               child: Container(
                                 width: 64,
                                 height: 36,
@@ -1466,12 +1529,13 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                   _qtyButtonMinimal(
                                     icon: Icons.remove,
                                     onTap: () => setState(() {
-                                      if ((_productQty[index] ?? 1) <= 1) {
-                                        _productQty.remove(index);
+                                      if ((_productQty[product.id] ?? 1) <= 1) {
+                                        _productQty.remove(product.id);
                                       } else {
-                                        _productQty[index] = (_productQty[index] ?? 1) - 1;
+                                        _productQty[product.id] = (_productQty[product.id] ?? 1) - 1;
                                       }
                                     }),
+
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -1487,8 +1551,9 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                   _qtyButtonMinimal(
                                     icon: Icons.add,
                                     onTap: () => setState(
-                                        () => _productQty[index] = (qty) + 1),
+                                        () => _productQty[product.id] = (qty) + 1),
                                   ),
+
                                 ],
                               ),
                             ),
@@ -1616,16 +1681,18 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
 
   // ── Product Detail Card ──────────────────────────────────────
   void _showProductDetail(ProductItem product, [int? index]) {
-    final int globalIdx = index ?? allProducts.indexOf(product);
+
     
     // Add to recently viewed if not already at the front
     setState(() {
-      _recentlyViewedIndices.remove(globalIdx);
-      _recentlyViewedIndices.insert(0, globalIdx);
+      final String id = product.id;
+      _recentlyViewedIndices.remove(id);
+      _recentlyViewedIndices.insert(0, id);
       if (_recentlyViewedIndices.length > 10) {
         _recentlyViewedIndices.removeLast();
       }
     });
+
     _saveRecentlyViewed();
     
     showDialog(
@@ -1633,7 +1700,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           final bool isFavorite = _favoriteProductIds.contains(product.id);
-          final int qty = _productQty[globalIdx] ?? 0;
+          final int qty = _productQty[product.id] ?? 0;
+
           final PageController pageController = PageController();
           
           return Dialog(
@@ -1790,7 +1858,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                 qty == 0
                                   ? ElevatedButton(
                                       onPressed: () {
-                                        setState(() => _productQty[globalIdx] = 1);
+                                        setState(() => _productQty[product.id] = 1);
+
                                         setDialogState(() {});
                                       },
                                       style: ElevatedButton.styleFrom(
@@ -1814,13 +1883,14 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                             icon: Icons.remove,
                                             onTap: () {
                                               setState(() {
-                                                if ((_productQty[globalIdx] ?? 1) <= 1) {
-                                                  _productQty.remove(globalIdx);
+                                                if ((_productQty[product.id] ?? 1) <= 1) {
+                                                  _productQty.remove(product.id);
                                                 } else {
-                                                  _productQty[globalIdx] = (_productQty[globalIdx] ?? 1) - 1;
+                                                  _productQty[product.id] = (_productQty[product.id] ?? 1) - 1;
                                                 }
                                               });
                                               setDialogState(() {});
+
                                             },
                                           ),
                                           Padding(
@@ -1833,9 +1903,10 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                           _qtyButton(
                                             icon: Icons.add,
                                             onTap: () {
-                                              setState(() => _productQty[globalIdx] = (qty) + 1);
+                                              setState(() => _productQty[product.id] = (qty) + 1);
                                               setDialogState(() {});
                                             },
+
                                           ),
                                         ],
                                       ),
@@ -2103,7 +2174,237 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     );
   }
 
+  void _showNotificationsOverlay() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF161722) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            )
+          ],
+        ),
+        child: StreamBuilder<List<NotificationItem>>(
+          stream: _notificationService.getNotifications(),
+          builder: (context, snapshot) {
+            final notifications = snapshot.data ?? [];
+            final unreadCount = notifications.where((n) => !n.isRead).length;
+
+            return Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Notifications',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          if (unreadCount > 0)
+                            Text(
+                              '$unreadCount unread messages',
+                              style: const TextStyle(color: Color(0xFF27C93F), fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          if (unreadCount > 0)
+                            TextButton(
+                              onPressed: () => _notificationService.markAllAsRead(),
+                              child: const Text('Mark all as read', style: TextStyle(fontSize: 12)),
+                            ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // List
+                Expanded(
+                  child: notifications.isEmpty
+                      ? _buildEmptyNotifications()
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: notifications.length,
+                          itemBuilder: (context, index) {
+                            final notification = notifications[index];
+                            return _buildNotificationTile(notification, (fn) => fn()); // Dummy state setter
+                          },
+                        ),
+                ),
+                
+                // Footer
+                if (notifications.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => _notificationService.clearAll(),
+                        child: const Text('Clear All Notifications', style: TextStyle(color: Colors.redAccent)),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          }
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyNotifications() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.notifications_off_outlined, size: 80, color: isDark ? Colors.white24 : Colors.black12),
+          const SizedBox(height: 16),
+          Text(
+            'No notifications yet',
+            style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'We will notify you about your orders and offers!',
+            style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationTile(NotificationItem notification, StateSetter setModalState) {
+    IconData icon;
+    Color iconColor;
+    
+    switch (notification.type) {
+      case 'order':
+        icon = Icons.shopping_bag_outlined;
+        iconColor = Colors.orange;
+        break;
+      case 'offer':
+        icon = Icons.local_offer_outlined;
+        iconColor = Colors.redAccent;
+        break;
+      default:
+        icon = Icons.info_outline;
+        iconColor = const Color(0xFF27C93F);
+    }
+
+    return GestureDetector(
+      onTap: () {
+        if (!notification.isRead) {
+          _notificationService.markAsRead(notification.id);
+          setModalState(() {});
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: notification.isRead 
+              ? (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02))
+              : (isDark ? Colors.white.withOpacity(0.08) : Colors.blue.withOpacity(0.05)),
+          borderRadius: BorderRadius.circular(16),
+          border: notification.isRead 
+              ? null 
+              : Border.all(color: const Color(0xFF27C93F).withOpacity(0.3)),
+        ),
+
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        notification.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      Text(
+                        _formatDate(notification.createdAt),
+                        style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    notification.message,
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black87,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!notification.isRead)
+              Container(
+                margin: const EdgeInsets.only(left: 8, top: 4),
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF27C93F),
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${date.day}/${date.month}';
+  }
+
   void _showCartModal() {
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2247,7 +2548,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildCartItemList(List<MapEntry<int, int>> cartItems, StateSetter setModalState) {
+  Widget _buildCartItemList(List<MapEntry<String, int>> cartItems, StateSetter setModalState) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
@@ -2263,8 +2564,23 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
         ),
         itemBuilder: (context, index) {
           final entry = cartItems[index];
-          final product = allProducts[entry.key];
-          final qty = entry.value;
+          final String productId = entry.key;
+          final int qty = entry.value;
+
+          ProductItem? product;
+          try {
+            product = allProducts.firstWhere((p) => p.id == productId);
+          } catch (_) {
+            try {
+              product = recentlyAddedProducts.firstWhere((p) => p.id == productId);
+            } catch (_) {
+               try {
+                 product = _fallbackProducts.firstWhere((p) => p.id == productId);
+               } catch (_) {}
+            }
+          }
+
+          if (product == null) return const SizedBox.shrink();
 
           return Padding(
             padding: const EdgeInsets.all(12),
@@ -2776,16 +3092,31 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                           
                           // Prepare cart data for payment page
                           final List<Map<String, dynamic>> cartDetails = [];
-                          _productQty.forEach((index, qty) {
+                          _productQty.forEach((id, qty) {
                             if (qty > 0) {
-                              final p = allProducts[index];
-                              cartDetails.add({
-                                'name': p.name,
-                                'qty': qty,
-                                'price': p.price.replaceAll('₹', '').trim(),
-                              });
+                              ProductItem? p;
+                              try {
+                                p = allProducts.firstWhere((item) => item.id == id);
+                              } catch (_) {
+                                try {
+                                  p = recentlyAddedProducts.firstWhere((item) => item.id == id);
+                                } catch (_) {
+                                  try {
+                                    p = _fallbackProducts.firstWhere((item) => item.id == id);
+                                  } catch (_) {}
+                                }
+                              }
+
+                              if (p != null) {
+                                cartDetails.add({
+                                  'name': p.name,
+                                  'qty': qty,
+                                  'price': p.price.replaceAll('₹', '').trim(),
+                                });
+                              }
                             }
                           });
+
 
                           final bool? orderSuccess = await Navigator.push<bool>(
                             context,
@@ -2798,7 +3129,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                                   totalAmount: totalCartAmount,
                                   cartItems: cartDetails,
                                   userName: _userName,
-                                  userId: _userEmail,
+                                  userId: _userId,
                                 ),
                               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                 const begin = Offset(0.0, 1.0);
@@ -3222,7 +3553,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
     return GestureDetector(
       onTap: () async {
         if (title.contains('Shoes')) {
-          final updatedCart = await Navigator.push<Map<int, int>>(
+          final updatedCart = await Navigator.push<Map<String, int>>(
             context,
             MaterialPageRoute(
               builder: (context) => ShoesPage(
@@ -3463,7 +3794,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       return;
     }
     if (t == 'BAGS' || title.toUpperCase() == 'BAGS') {
-      final updatedCart = await Navigator.push<Map<int, int>>(
+      final updatedCart = await Navigator.push<Map<String, int>>(
         context,
         MaterialPageRoute(
           builder: (context) => AllProductsPage(
@@ -3479,7 +3810,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
       return;
     }
     if (t == 'SHOES' || title.toUpperCase() == 'SHOES') {
-      final updatedCart = await Navigator.push<Map<int, int>>(
+      final updatedCart = await Navigator.push<Map<String, int>>(
         context,
         MaterialPageRoute(
           builder: (context) => AllProductsPage(
@@ -3515,11 +3846,11 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
   List<Widget> _buildRecentlyViewedSection() {
     // If no history, show "Recently Added" instead
     final bool hasHistory = _recentlyViewedIndices.isNotEmpty;
-    final List<int> displayIndices = hasHistory 
+    final List<String> displayIds = hasHistory 
       ? _recentlyViewedIndices 
-      : (allProducts.length > 8 ? List.generate(8, (i) => allProducts.length - 1 - i) : List.generate(allProducts.length, (i) => allProducts.length - 1 - i));
+      : recentlyAddedProducts.map((p) => p.id).take(8).toList();
 
-    if (displayIndices.isEmpty) return [];
+    if (displayIds.isEmpty) return [];
 
     return [
       Padding(
@@ -3556,15 +3887,23 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
         height: 260,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          itemCount: displayIndices.length,
+          itemCount: displayIds.length,
           itemBuilder: (context, idx) {
-            final productIdx = displayIndices[idx];
-            if (productIdx < 0 || productIdx >= allProducts.length) return const SizedBox();
-            final product = allProducts[productIdx];
+            final productId = displayIds[idx];
+            ProductItem? product;
+            try {
+              product = allProducts.firstWhere((p) => p.id == productId);
+            } catch (_) {
+              try {
+                product = recentlyAddedProducts.firstWhere((p) => p.id == productId);
+              } catch (_) {}
+            }
+            
+            if (product == null) return const SizedBox();
             
             return Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: _buildSmallProductCard(product, productIdx),
+              child: _buildSmallProductCard(product, 0), // index not strictly needed for detail show
             );
           },
         ),
@@ -3771,7 +4110,8 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                 ),
                 TextButton(
                   onPressed: () async {
-                    final updatedCart = await Navigator.push<Map<int, int>>(
+                    final updatedCart = await Navigator.push<Map<String, int>>(
+
                       context,
                       MaterialPageRoute(
                         builder: (context) => AllProductsPage(
@@ -3812,10 +4152,11 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                     product: product,
                     isFavorite: _favoriteProductIds.contains(product.id),
                     onFavoriteToggle: () => _toggleFavorite(product.id),
-                    qty: _productQty[gIdx] ?? 0,
+                    qty: _productQty[product.id] ?? 0,
                     onAddToCart: () => setState(() =>
-                        _productQty[gIdx] = (_productQty[gIdx] ?? 0) + 1),
+                        _productQty[product.id] = (_productQty[product.id] ?? 0) + 1),
                     onTap: () => _showProductDetail(product, gIdx),
+
                   ),
                 );
               },
@@ -3852,7 +4193,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
             isDark: isDark,
             onTap: () async {
               setState(() => _selectedCategoryIndex = index);
-              final updatedCart = await Navigator.push<Map<int, int>>(
+              final updatedCart = await Navigator.push<Map<String, int>>(
                 context,
                 MaterialPageRoute(
                   builder: (context) => AllProductsPage(
@@ -3864,6 +4205,7 @@ class _AddressPageState extends State<AddressPage> with SingleTickerProviderStat
                   ),
                 ),
               );
+
               if (updatedCart != null) {
                 setState(() {
                   _productQty.clear();
@@ -4002,8 +4344,9 @@ class AllProductsPage extends StatefulWidget {
   final String title;
   final List<ProductItem> allProducts;
   final String categoryFilter;
-  final Map<int, int> initialCart;
+  final Map<String, int> initialCart;
   final bool isDarkMode;
+
 
   const AllProductsPage({
     super.key,
@@ -4020,8 +4363,9 @@ class AllProductsPage extends StatefulWidget {
 
 class _AllProductsPageState extends State<AllProductsPage> {
   bool get isDark => Theme.of(context).brightness == Brightness.dark;
-  late Map<int, int> _qty;
+  late Map<String, int> _qty;
   late List<ProductItem> filteredProducts;
+
   Set<String> _favoriteProductIds = {}; 
 
   @override
@@ -4137,15 +4481,16 @@ class _AllProductsPageState extends State<AllProductsPage> {
   }
 
   void _showProductDetail(ProductItem product) {
-    final int globalIdx = widget.allProducts.indexOf(product);
+
     
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           final bool isFavorite = _favoriteProductIds.contains(product.id);
-          final int qty = _qty[globalIdx] ?? 0;
+          final int qty = _qty[product.id] ?? 0;
           final PageController pageController = PageController();
+
           
           final screenWidth = MediaQuery.of(context).size.width;
           final screenHeight = MediaQuery.of(context).size.height;
@@ -4286,9 +4631,10 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                 qty == 0
                                   ? ElevatedButton(
                                       onPressed: () {
-                                        setState(() => _qty[globalIdx] = 1);
+                                        setState(() => _qty[product.id] = 1);
                                         setDialogState(() {});
                                       },
+
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFF27C93F),
                                         foregroundColor: Colors.white,
@@ -4310,13 +4656,14 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                             icon: Icons.remove,
                                             onTap: () {
                                               setState(() {
-                                                if ((_qty[globalIdx] ?? 1) <= 1) {
-                                                  _qty.remove(globalIdx);
+                                                if ((_qty[product.id] ?? 1) <= 1) {
+                                                  _qty.remove(product.id);
                                                 } else {
-                                                  _qty[globalIdx] = (_qty[globalIdx] ?? 1) - 1;
+                                                  _qty[product.id] = (_qty[product.id] ?? 1) - 1;
                                                 }
                                               });
                                               setDialogState(() {});
+
                                             },
                                           ),
                                           Padding(
@@ -4329,9 +4676,10 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                           _detailQtyButton(
                                             icon: Icons.add,
                                             onTap: () {
-                                              setState(() => _qty[globalIdx] = (qty) + 1);
+                                              setState(() => _qty[product.id] = (qty) + 1);
                                               setDialogState(() {});
                                             },
+
                                           ),
                                         ],
                                       ),
@@ -4382,8 +4730,8 @@ class _AllProductsPageState extends State<AllProductsPage> {
   }
 
   Widget _buildGridCard(ProductItem product) {
-    final globalIdx = widget.allProducts.indexOf(product);
-    final qty = _qty[globalIdx] ?? 0;
+    final qty = _qty[product.id] ?? 0;
+
     
     final cardBg = isDark ? const Color(0xFF1A1B28) : Colors.white;
     final borderColor = isDark
@@ -4487,7 +4835,8 @@ class _AllProductsPageState extends State<AllProductsPage> {
                         )),
                     qty == 0
                         ? GestureDetector(
-                            onTap: () => setState(() => _qty[globalIdx] = 1),
+                            onTap: () => setState(() => _qty[product.id] = 1),
+
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 4),
@@ -4510,12 +4859,13 @@ class _AllProductsPageState extends State<AllProductsPage> {
                               _btn(
                                 icon: Icons.remove,
                                 onTap: () => setState(() {
-                                  if ((_qty[globalIdx] ?? 1) <= 1) {
-                                    _qty.remove(globalIdx);
+                                  if ((_qty[product.id] ?? 1) <= 1) {
+                                    _qty.remove(product.id);
                                   } else {
-                                    _qty[globalIdx] = (_qty[globalIdx] ?? 1) - 1;
+                                    _qty[product.id] = (_qty[product.id] ?? 1) - 1;
                                   }
                                 }),
+
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 5),
@@ -4529,7 +4879,8 @@ class _AllProductsPageState extends State<AllProductsPage> {
                               _btn(
                                 icon: Icons.add,
                                 onTap: () =>
-                                    setState(() => _qty[globalIdx] = qty + 1),
+                                    setState(() => _qty[product.id] = qty + 1),
+
                               ),
                             ],
                           ),
@@ -4557,7 +4908,9 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onThemeToggle;
   final int totalCartItems;
   final double itemsTotal;
+  final int unreadNotificationsCount;
   final VoidCallback onCartTap;
+  final VoidCallback onNotificationTap;
   final Function(BuildContext, RelativeRect) onAccountTap;
 
   _SearchHeaderDelegate({
@@ -4571,9 +4924,12 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.onThemeToggle,
     required this.totalCartItems,
     required this.itemsTotal,
+    required this.unreadNotificationsCount,
     required this.onCartTap,
+    required this.onNotificationTap,
     required this.onAccountTap,
   });
+
 
   @override
   double get minExtent => 70;
@@ -4745,7 +5101,12 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                   const SizedBox(width: 12),
                   
+                  // Notification Bell
+                  _buildHeaderNotificationBell(),
+                  const SizedBox(width: 12),
+                  
                   // Blog Button in Header
+
                   TextButton(
                     onPressed: () => Navigator.push(
                       context, 
@@ -4947,7 +5308,12 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                       const SizedBox(width: 16),
                     ],
                     
+                    // Notification Bell
+                    _buildHeaderNotificationBell(),
+                    const SizedBox(width: 16),
+
                     // Theme Toggle
+
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -4986,6 +5352,47 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
+  Widget _buildHeaderNotificationBell() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        GestureDetector(
+          onTap: onNotificationTap,
+          child: Icon(
+            Icons.notifications_none,
+            color: isDarkMode ? Colors.white : Colors.black,
+            size: 22,
+          ),
+        ),
+        if (unreadNotificationsCount > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Color(0xFF27C93F),
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 12,
+                minHeight: 12,
+              ),
+              child: Text(
+                unreadNotificationsCount > 9 ? '9+' : '$unreadNotificationsCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 7,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   bool shouldRebuild(covariant _SearchHeaderDelegate oldDelegate) {
     return oldDelegate.placeholderIndex != placeholderIndex || 
@@ -5000,11 +5407,12 @@ class _FeaturedProductsSection extends StatefulWidget {
   final List<ProductItem> allProducts;
   final List<ProductItem> newArrivalProducts;
   final Set<String> favoriteProductIds;
-  final Function(int) onAddToCart;
+  final Function(String) onAddToCart;
   final Function(String) onFavoriteToggle;
-  final Function(ProductItem, int) onShowDetail;
-  final Map<int, int> productQty;
+  final Function(ProductItem, int?) onShowDetail;
+  final Map<String, int> productQty;
   final bool isDark;
+
 
   const _FeaturedProductsSection({
     required this.allProducts,
@@ -5087,7 +5495,7 @@ class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> with
       itemCount: products.length,
       itemBuilder: (context, index) {
         final product = products[index];
-        final globalIdx = widget.allProducts.indexOf(product);
+        final qty = widget.productQty[product.id] ?? 0;
         
         return Container(
           width: 170,
@@ -5096,12 +5504,13 @@ class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> with
             product: product,
             isFavorite: widget.favoriteProductIds.contains(product.id),
             onFavoriteToggle: () => widget.onFavoriteToggle(product.id),
-            qty: widget.productQty[globalIdx] ?? 0,
-            onAddToCart: () => widget.onAddToCart(globalIdx),
-            onTap: () => widget.onShowDetail(product, globalIdx),
+            qty: qty,
+            onAddToCart: () => widget.onAddToCart(product.id),
+            onTap: () => widget.onShowDetail(product, null),
           ),
         );
       },
+
     );
   }
 }

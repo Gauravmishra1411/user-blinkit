@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/order_service.dart';
+import '../services/notification_service.dart';
+
 
 class PaymentPage extends StatefulWidget {
   final bool isDarkMode;
@@ -329,6 +331,28 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
         items: widget.cartItems,
         transactionId: _transactionId,
       );
+
+      // Send notifications (unawaited to prevent blocking UI)
+      NotificationService.notifyAdmin(
+        title: 'New order placed',
+        message: 'Order #$_orderId by ${widget.userName} for ₹${widget.totalAmount.toStringAsFixed(0)}',
+        type: 'order',
+        metadata: {
+          'orderId': _orderId,
+          'userName': widget.userName,
+          'amount': widget.totalAmount,
+          'productCount': widget.cartItems.length,
+        },
+      );
+
+      NotificationService.sendNotification(
+        userId: widget.userId,
+        title: 'Order Placed successfully',
+        message: 'Your order #$_orderId has been placed and is being processed.',
+        type: 'order',
+        metadata: {'orderId': _orderId},
+      );
+
 
       if (!mounted) return;
       Navigator.pop(context); // Pop loading dialog

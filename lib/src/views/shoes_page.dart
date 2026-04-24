@@ -4,7 +4,7 @@ import './address_page.dart'; // To access ProductItem
 class ShoesPage extends StatefulWidget {
   final bool isDarkMode;
   final List<ProductItem> allProducts;
-  final Map<int, int> initialCart;
+  final Map<String, int> initialCart;
   
   const ShoesPage({
     super.key, 
@@ -13,12 +13,14 @@ class ShoesPage extends StatefulWidget {
     required this.initialCart,
   });
 
+
   @override
   State<ShoesPage> createState() => _ShoesPageState();
 }
 
 class _ShoesPageState extends State<ShoesPage> {
-  late Map<int, int> _localCart;
+  late Map<String, int> _localCart;
+
   late List<ProductItem> shoeProducts;
 
   @override
@@ -134,8 +136,7 @@ class _ShoesPageState extends State<ShoesPage> {
 
   Widget _buildShoeCard(ProductItem shoe, bool isDarkMode, BuildContext context) {
     final bool isDark = isDarkMode;
-    final int globalIdx = widget.allProducts.indexOf(shoe);
-    final int qty = _localCart[globalIdx] ?? 0;
+    final int qty = _localCart[shoe.id] ?? 0;
     
     return Container(
       decoration: BoxDecoration(
@@ -214,9 +215,10 @@ class _ShoesPageState extends State<ShoesPage> {
                     GestureDetector(
                       onTap: () {
                         setState(() {
-                          _localCart[globalIdx] = (_localCart[globalIdx] ?? 0) + 1;
+                          _localCart[shoe.id] = (_localCart[shoe.id] ?? 0) + 1;
                         });
                       },
+
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 6),
